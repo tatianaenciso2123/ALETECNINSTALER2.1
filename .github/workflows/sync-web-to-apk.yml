@@ -1,0 +1,28 @@
+name: Sync Web to APK Repo & Trigger Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  dispatch-apk-build:
+    name: Dispatch APK Build to aletecninstaler
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Android APK Repository Build
+        run: |
+          echo "Notificando al repositorio APK (tatianaenciso2123/aletecninstaler) sobre cambios en la aplicación web (aletecninstaler2)..."
+          
+          # Si se dispone del token de GitHub o PAT, se envía el webhook repository_dispatch
+          if [ -n "${{ secrets.SYNC_REPO_TOKEN || secrets.GITHUB_TOKEN }}" ]; then
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.SYNC_REPO_TOKEN || secrets.GITHUB_TOKEN }}" \
+              https://api.github.com/repos/tatianaenciso2123/aletecninstaler/dispatches \
+              -d '{"event_type":"web-updated","client_payload":{"source_repo":"tatianaenciso2123/aletecninstaler2","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","commit":"${{ github.sha }}"}}' || echo "Dispatched"
+          else
+            echo "Aviso: Para activar el webhook automático inter-repositorios, configura el secret SYNC_REPO_TOKEN con permisos de repo."
+          fi

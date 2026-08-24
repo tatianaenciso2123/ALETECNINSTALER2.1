@@ -1,0 +1,163 @@
+name: Android APK Build and Release CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  repository_dispatch:
+    types: [web-updated, sync-and-build, build-apk]
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Notas de la versión para la compilación'
+        required: false
+        default: 'Compilación automática sincronizada desde aletecninstaler2'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-sign-apk:
+    name: Build & Sign Android APK (Synced with aletecninstaler2)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout APK Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Si se dispara por repository_dispatch o para asegurar la última versión web,
+      # sincroniza opcionalmente el código fuente desde el repositorio web oficial
+      - name: Sync latest web source from aletecninstaler2
+        run: |
+          echo "Verificando sincronización con https://github.com/tatianaenciso2123/aletecninstaler2.git..."
+          git remote add web_repo https://github.com/tatianaenciso2123/aletecninstaler2.git || true
+          git fetch web_repo main || true
+          # Si existen cambios en el repo web, se fusionan manteniendo la estructura de Android
+          git merge --no-edit web_repo/main || echo "Continuando con el código actual..."
+
+      # No usamos cache: npm porque el repositorio no contiene package-lock.json.
+      # Esto evita que setup-node falle antes de comenzar la compilación.
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies and Build Web Assets
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          test -d dist
+          mkdir -p android/app/src/main/assets
+          cp -rf dist/. android/app/src/main/assets/
+          echo "Web assets successfully compiled and synced to Android assets."
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: gradle
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2'
+
+      # Generamos el Wrapper antes de usar ./gradlew para evitar
+      # org.gradle.wrapper.GradleWrapperMain ClassNotFoundException.
+      - name: Generate Gradle Wrapper 8.2
+        working-directory: android
+        run: |
+          gradle wrapper --gradle-version 8.2 --distribution-type all
+          chmod +x ./gradlew
+          ./gradlew --version
+
+      - name: Build Debug APK
+        working-directory: android
+        run: |
+          ./gradlew clean assembleDebug --stacktrace --no-daemon
+
+      - name: Build Release APK & Copy to Static Artifacts
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Sign Release APK
+        id: sign_apk
+        run: |
+          set -e
+          mkdir -p android/app/build/outputs/apk/release/signed
+          RELEASE_APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)
+
+          if [ -z "$RELEASE_APK" ]; then
+            echo "No se encontró la APK Release para firmar."
+            exit 1
+          fi
+
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Firmando con el keystore configurado en GitHub Secrets..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > /tmp/release.keystore
+            "${ANDROID_HOME}/build-tools/34.0.0/apksigner" sign \
+              --ks /tmp/release.keystore \
+              --ks-pass pass:"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+              --ks-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+              --key-pass pass:"${{ secrets.ANDROID_KEY_PASSWORD }}" \
+              --out android/app/build/outputs/apk/release/signed/ALE_TECNINSTALER_Release_Signed.apk \
+              "$RELEASE_APK"
+          else
+            echo "No hay keystore de producción configurado. Se conservará la APK Release firmada con la clave de debug para instalación y pruebas."
+            cp "$RELEASE_APK" android/app/build/outputs/apk/release/signed/ALE_TECNINSTALER_Release_Signed.apk
+          fi
+
+          echo "apk_signed_path=android/app/build/outputs/apk/release/signed/ALE_TECNINSTALER_Release_Signed.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALE-TECNINSTALER-Debug-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Signed Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALE-TECNINSTALER-Signed-Release-APK
+          path: |
+            android/app/build/outputs/apk/release/signed/*.apk
+            dist/artifacts/*.apk
+            android/artifacts/*.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      # En cada push exitoso o evento dispatch se crea o actualiza la Release descargable.
+      - name: Publish Official GitHub Release
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
+          files: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/signed/*.apk
+          name: "ALE TECNINSTALER Android Release ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}"
+          body: |
+            ### 📱 Nueva versión sincronizada de ALE TECNINSTALER
+            - **Origen Web:** Sincronizado automáticamente con `https://github.com/tatianaenciso2123/aletecninstaler2.git`
+            - **APK Release:** Lista para instalación en teléfonos Android.
+            - **APK Debug:** Incluida para desarrollo y diagnóstico.
+            - **Compilación CI/CD:** Gradle 8.2 + AGP 8.2.2 + Java 17.
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

@@ -1,0 +1,416 @@
+@import "tailwindcss";
+
+/* Global smooth transition for theme switches */
+body, main, header, div, nav, button, card, section {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+/* =========================================================================
+   THEME: ESMERALDA ECOLÓGICA (dark-emerald)
+   ========================================================================= */
+html[data-theme='dark-emerald'] body,
+html[data-theme='dark-emerald'] main,
+html[data-theme='dark-emerald'] .dark\:bg-slate-950 {
+  background-color: #03140e !important;
+}
+
+html[data-theme='dark-emerald'] header,
+html[data-theme='dark-emerald'] .dark\:bg-slate-900,
+html[data-theme='dark-emerald'] .bg-slate-900 {
+  background-color: #062319 !important;
+}
+
+html[data-theme='dark-emerald'] .bg-slate-950,
+html[data-theme='dark-emerald'] .dark\:bg-slate-950\/80 {
+  background-color: #020f0a !important;
+}
+
+html[data-theme='dark-emerald'] .dark\:border-slate-800,
+html[data-theme='dark-emerald'] .border-slate-800,
+html[data-theme='dark-emerald'] .border-slate-800\/80 {
+  border-color: #0f3d2e !important;
+}
+
+html[data-theme='dark-emerald'] .bg-sky-600,
+html[data-theme='dark-emerald'] .bg-sky-500 {
+  background-color: #059669 !important;
+}
+
+html[data-theme='dark-emerald'] .hover\:bg-sky-500:hover,
+html[data-theme='dark-emerald'] .hover\:bg-sky-600:hover {
+  background-color: #10b981 !important;
+}
+
+html[data-theme='dark-emerald'] .text-sky-400,
+html[data-theme='dark-emerald'] .text-sky-300 {
+  color: #34d399 !important;
+}
+
+html[data-theme='dark-emerald'] .border-sky-500,
+html[data-theme='dark-emerald'] .border-sky-500\/40,
+html[data-theme='dark-emerald'] .border-sky-700\/50 {
+  border-color: #10b981 !important;
+}
+
+html[data-theme='dark-emerald'] .bg-sky-500\/10,
+html[data-theme='dark-emerald'] .bg-sky-500\/20,
+html[data-theme='dark-emerald'] .bg-sky-900\/60 {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+}
+
+/* =========================================================================
+   THEME: ÍNDIGO CORPORATIVO / NEÓN (dark-indigo)
+   ========================================================================= */
+html[data-theme='dark-indigo'] body,
+html[data-theme='dark-indigo'] main,
+html[data-theme='dark-indigo'] .dark\:bg-slate-950 {
+  background-color: #070719 !important;
+}
+
+html[data-theme='dark-indigo'] header,
+html[data-theme='dark-indigo'] .dark\:bg-slate-900,
+html[data-theme='dark-indigo'] .bg-slate-900 {
+  background-color: #0f0f2d !important;
+}
+
+html[data-theme='dark-indigo'] .bg-slate-950,
+html[data-theme='dark-indigo'] .dark\:bg-slate-950\/80 {
+  background-color: #050512 !important;
+}
+
+html[data-theme='dark-indigo'] .dark\:border-slate-800,
+html[data-theme='dark-indigo'] .border-slate-800,
+html[data-theme='dark-indigo'] .border-slate-800\/80 {
+  border-color: #212154 !important;
+}
+
+html[data-theme='dark-indigo'] .bg-sky-600,
+html[data-theme='dark-indigo'] .bg-sky-500 {
+  background-color: #4f46e5 !important;
+}
+
+html[data-theme='dark-indigo'] .hover\:bg-sky-500:hover,
+html[data-theme='dark-indigo'] .hover\:bg-sky-600:hover {
+  background-color: #6366f1 !important;
+}
+
+html[data-theme='dark-indigo'] .text-sky-400,
+html[data-theme='dark-indigo'] .text-sky-300 {
+  color: #818cf8 !important;
+}
+
+html[data-theme='dark-indigo'] .border-sky-500,
+html[data-theme='dark-indigo'] .border-sky-500\/40,
+html[data-theme='dark-indigo'] .border-sky-700\/50 {
+  border-color: #6366f1 !important;
+}
+
+html[data-theme='dark-indigo'] .bg-sky-500\/10,
+html[data-theme='dark-indigo'] .bg-sky-500\/20,
+html[data-theme='dark-indigo'] .bg-sky-900\/60 {
+  background-color: rgba(99, 102, 241, 0.18) !important;
+}
+
+/* =========================================================================
+   THEME: ÁMBAR ELÉCTRICO / ORO (dark-amber)
+   ========================================================================= */
+html[data-theme='dark-amber'] body,
+html[data-theme='dark-amber'] main,
+html[data-theme='dark-amber'] .dark\:bg-slate-950 {
+  background-color: #120e06 !important;
+}
+
+html[data-theme='dark-amber'] header,
+html[data-theme='dark-amber'] .dark\:bg-slate-900,
+html[data-theme='dark-amber'] .bg-slate-900 {
+  background-color: #1f170b !important;
+}
+
+html[data-theme='dark-amber'] .bg-slate-950,
+html[data-theme='dark-amber'] .dark\:bg-slate-950\/80 {
+  background-color: #0b0803 !important;
+}
+
+html[data-theme='dark-amber'] .dark\:border-slate-800,
+html[data-theme='dark-amber'] .border-slate-800,
+html[data-theme='dark-amber'] .border-slate-800\/80 {
+  border-color: #3b2c12 !important;
+}
+
+html[data-theme='dark-amber'] .bg-sky-600,
+html[data-theme='dark-amber'] .bg-sky-500 {
+  background-color: #d97706 !important;
+}
+
+html[data-theme='dark-amber'] .hover\:bg-sky-500:hover,
+html[data-theme='dark-amber'] .hover\:bg-sky-600:hover {
+  background-color: #f59e0b !important;
+}
+
+html[data-theme='dark-amber'] .text-sky-400,
+html[data-theme='dark-amber'] .text-sky-300 {
+  color: #fbbf24 !important;
+}
+
+html[data-theme='dark-amber'] .border-sky-500,
+html[data-theme='dark-amber'] .border-sky-500\/40,
+html[data-theme='dark-amber'] .border-sky-700\/50 {
+  border-color: #f59e0b !important;
+}
+
+html[data-theme='dark-amber'] .bg-sky-500\/10,
+html[data-theme='dark-amber'] .bg-sky-500\/20,
+html[data-theme='dark-amber'] .bg-sky-900\/60 {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+}
+
+/* =========================================================================
+   THEME: RUBÍ RCI INCENDIOS (dark-rose)
+   ========================================================================= */
+html[data-theme='dark-rose'] body,
+html[data-theme='dark-rose'] main,
+html[data-theme='dark-rose'] .dark\:bg-slate-950 {
+  background-color: #140508 !important;
+}
+
+html[data-theme='dark-rose'] header,
+html[data-theme='dark-rose'] .dark\:bg-slate-900,
+html[data-theme='dark-rose'] .bg-slate-900 {
+  background-color: #240a10 !important;
+}
+
+html[data-theme='dark-rose'] .bg-slate-950,
+html[data-theme='dark-rose'] .dark\:bg-slate-950\/80 {
+  background-color: #0d0305 !important;
+}
+
+html[data-theme='dark-rose'] .dark\:border-slate-800,
+html[data-theme='dark-rose'] .border-slate-800,
+html[data-theme='dark-rose'] .border-slate-800\/80 {
+  border-color: #42111d !important;
+}
+
+html[data-theme='dark-rose'] .bg-sky-600,
+html[data-theme='dark-rose'] .bg-sky-500 {
+  background-color: #e11d48 !important;
+}
+
+html[data-theme='dark-rose'] .hover\:bg-sky-500:hover,
+html[data-theme='dark-rose'] .hover\:bg-sky-600:hover {
+  background-color: #f43f5e !important;
+}
+
+html[data-theme='dark-rose'] .text-sky-400,
+html[data-theme='dark-rose'] .text-sky-300 {
+  color: #fb7185 !important;
+}
+
+html[data-theme='dark-rose'] .border-sky-500,
+html[data-theme='dark-rose'] .border-sky-500\/40,
+html[data-theme='dark-rose'] .border-sky-700\/50 {
+  border-color: #f43f5e !important;
+}
+
+html[data-theme='dark-rose'] .bg-sky-500\/10,
+html[data-theme='dark-rose'] .bg-sky-500\/20,
+html[data-theme='dark-rose'] .bg-sky-900\/60 {
+  background-color: rgba(244, 63, 94, 0.18) !important;
+}
+
+/* =========================================================================
+   THEME: OLED TITANIO PURO (dark-oled)
+   ========================================================================= */
+html[data-theme='dark-oled'] body,
+html[data-theme='dark-oled'] main,
+html[data-theme='dark-oled'] .dark\:bg-slate-950 {
+  background-color: #000000 !important;
+}
+
+html[data-theme='dark-oled'] header,
+html[data-theme='dark-oled'] .dark\:bg-slate-900,
+html[data-theme='dark-oled'] .bg-slate-900 {
+  background-color: #09090b !important;
+}
+
+html[data-theme='dark-oled'] .bg-slate-950,
+html[data-theme='dark-oled'] .dark\:bg-slate-950\/80 {
+  background-color: #040405 !important;
+}
+
+html[data-theme='dark-oled'] .dark\:border-slate-800,
+html[data-theme='dark-oled'] .border-slate-800,
+html[data-theme='dark-oled'] .border-slate-800\/80 {
+  border-color: #27272a !important;
+}
+
+html[data-theme='dark-oled'] .bg-sky-600,
+html[data-theme='dark-oled'] .bg-sky-500 {
+  background-color: #0891b2 !important;
+}
+
+html[data-theme='dark-oled'] .hover\:bg-sky-500:hover,
+html[data-theme='dark-oled'] .hover\:bg-sky-600:hover {
+  background-color: #06b6d4 !important;
+}
+
+html[data-theme='dark-oled'] .text-sky-400,
+html[data-theme='dark-oled'] .text-sky-300 {
+  color: #22d3ee !important;
+}
+
+html[data-theme='dark-oled'] .border-sky-500,
+html[data-theme='dark-oled'] .border-sky-500\/40 {
+  border-color: #06b6d4 !important;
+}
+
+/* =========================================================================
+   THEME: BLANCO EJECUTIVO (light-clean)
+   ========================================================================= */
+html[data-theme='light-clean']:not(.dark) body,
+html[data-theme='light-clean']:not(.dark) main {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='light-clean']:not(.dark) .bg-slate-100 {
+  background-color: #f1f5f9 !important;
+}
+
+/* =========================================================================
+   THEME: ARENA CÁLIDA SUAVE (light-warm)
+   ========================================================================= */
+html[data-theme='light-warm']:not(.dark) body,
+html[data-theme='light-warm']:not(.dark) main {
+  background-color: #faf7f2 !important;
+  color: #292524 !important;
+}
+
+html[data-theme='light-warm']:not(.dark) .bg-slate-100 {
+  background-color: #f3eee6 !important;
+}
+
+html[data-theme='light-warm']:not(.dark) .bg-sky-600,
+html[data-theme='light-warm']:not(.dark) .bg-sky-500 {
+  background-color: #b45309 !important;
+}
+
+html[data-theme='light-warm']:not(.dark) .text-sky-600,
+html[data-theme='light-warm']:not(.dark) .text-sky-500 {
+  color: #b45309 !important;
+}
+
+/* =========================================================================
+   ANDROID & MOBILE RESPONSIVE ADAPTATIONS (PORTRAIT & LANDSCAPE)
+   ========================================================================= */
+
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Ensure body respects device notches and navigation bars */
+body {
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+  padding-bottom: var(--sab);
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Touch targets and scrolling optimization */
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* =========================================================================
+   ANDROID VERTICAL / MOBILE PORTRAIT OPTIMIZATION (< 640px)
+   Strictly vertical flow: only scroll UP/DOWN, no horizontal overflow.
+   Web and tablet versions (>= 640px) remain completely untouched.
+   ========================================================================= */
+@media screen and (max-width: 639px) {
+  html, body, #root {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+    width: 100% !important;
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main {
+    max-width: 100vw !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
+  }
+
+  /* Prevent any nested element from breaking the screen width */
+  div, section, article, header, nav, footer, form {
+    max-width: 100% !important;
+  }
+
+  /* Table wrappers inside cards stay confined and scroll internally without stretching screen */
+  .overflow-x-auto, table {
+    max-width: 100% !important;
+  }
+
+  /* Modal containers on mobile portrait */
+  .mobile-portrait-fullwidth-dropdown {
+    position: fixed !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    top: 3.5rem !important;
+    width: auto !important;
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  /* Modals fit neatly within mobile vertical screen with scrollable content */
+  .fixed.inset-0 > div {
+    max-width: calc(100vw - 1.25rem) !important;
+    width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* Mobile text and touch accessibility */
+  button, input, select, textarea {
+    touch-action: manipulation;
+  }
+
+  /* Ensure canvas or drawing tools don't overflow */
+  canvas {
+    max-width: 100% !important;
+  }
+}
+
+/* Landscape Mode for Android Phones (Short Viewport Height) */
+@media (orientation: landscape) and (max-height: 560px) {
+  .mobile-landscape-compact-header {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  .mobile-landscape-hide-topbar {
+    display: none !important;
+  }
+
+  .mobile-landscape-modal-body {
+    max-height: 72vh !important;
+  }
+
+  .mobile-landscape-grid-2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+

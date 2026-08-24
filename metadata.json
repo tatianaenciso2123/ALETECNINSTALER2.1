@@ -1,0 +1,12 @@
+{
+  "name": "ALE. TECNINSTALER S.A.S.",
+  "description": "Plataforma integral de gestión de mantenimiento hidráulico que conecta Administración, Equipo Técnico y Clientes con IA predictiva, despacho en ruta y reportes digitales.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
