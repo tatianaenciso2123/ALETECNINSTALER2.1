@@ -37,6 +37,12 @@ import {
   UserCog,
   Smartphone,
   Download,
+  Folder,
+  FolderOpen,
+  ChevronDown,
+  Coins,
+  Building,
+  Package,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -82,9 +88,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
+  const [isAccountingMenuOpen, setIsAccountingMenuOpen] = useState(false);
+  const [isResourcesMenuOpen, setIsResourcesMenuOpen] = useState(false);
   const [isAndroidApkModalOpen, setIsAndroidApkModalOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const notifMenuRef = useRef<HTMLDivElement>(null);
+  const accountingMenuRef = useRef<HTMLDivElement>(null);
+  const resourcesMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -95,6 +105,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (notifMenuRef.current && !notifMenuRef.current.contains(event.target as Node)) {
         setIsNotifMenuOpen(false);
       }
+      if (accountingMenuRef.current && !accountingMenuRef.current.contains(event.target as Node)) {
+        setIsAccountingMenuOpen(false);
+      }
+      if (resourcesMenuRef.current && !resourcesMenuRef.current.contains(event.target as Node)) {
+        setIsResourcesMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -104,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const activeThemeObj = THEME_OPTIONS.find((t) => t.id === currentTheme) || THEME_OPTIONS[0];
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-lg mobile-landscape-compact-header">
+    <header className="sticky top-0 z-50 bg-slate-900 border-b border-slate-800 text-white shadow-lg mobile-landscape-compact-header">
       {/* Top Corporate Status Bar */}
       <div className="bg-slate-950 px-2 sm:px-4 py-1 sm:py-1.5 border-b border-slate-800/80 text-[10px] sm:text-xs flex flex-wrap items-center justify-between gap-2 sm:gap-3 mobile-landscape-compact-header">
         <div className="flex items-center gap-2 sm:gap-4 text-slate-400">
@@ -498,9 +514,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Module Tabs Navigation */}
-      <div className="bg-slate-900/90 border-t border-slate-800/70 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto no-scrollbar">
-          <nav className="flex items-center space-x-1 sm:space-x-2 py-2">
+      <div className="bg-slate-900/95 border-t border-slate-800/70 px-4 sm:px-6 lg:px-8 relative z-30">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <nav className="flex items-center space-x-1 sm:space-x-2 py-2 overflow-x-auto sm:overflow-visible no-scrollbar">
             {/* ================= ADMIN TABS ================= */}
             {currentRole === 'admin' && (
               <>
@@ -529,18 +545,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onTabChange('warehouse')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                    activeTab === 'warehouse'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <Boxes className="w-3.5 h-3.5 text-emerald-400" />
-                  Bodega & Repuestos
-                </button>
-
-                <button
                   onClick={() => onTabChange('audit_control')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 relative ${
                     activeTab === 'audit_control'
@@ -558,52 +562,319 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onTabChange('invoicing')}
+                  onClick={() => onTabChange('tech_reports_history')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                    activeTab === 'invoicing'
+                    activeTab === 'tech_reports_history'
                       ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
+                  id="nav-tab-tech-reports-history"
                 >
-                  <Receipt className="w-3.5 h-3.5 text-emerald-400" />
-                  Facturación Diaria & Pagos
+                  <FileText className="w-3.5 h-3.5 text-sky-400" />
+                  Historial Fichas del Mes
                 </button>
 
-                <button
-                  onClick={() => onTabChange('finance')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                    activeTab === 'finance'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
-                  Caja Menor & Finanzas
-                </button>
+                {/* Carpeta de Gestión, Directorio & Bodega (Dropdown Folder) */}
+                <div className="relative" ref={resourcesMenuRef}>
+                  <button
+                    onClick={() => setIsResourcesMenuOpen(!isResourcesMenuOpen)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                      ['clients', 'technicians', 'talent', 'suppliers', 'warehouse', 'talent_clients'].includes(activeTab)
+                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 font-bold shadow-sm shadow-sky-950'
+                        : isResourcesMenuOpen
+                        ? 'bg-slate-800 text-white border border-slate-700'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                    id="nav-tab-resources-folder"
+                    title="Carpeta de Recursos: Clientes, Talento Humano, Proveedores y Bodega"
+                  >
+                    {isResourcesMenuOpen || ['clients', 'technicians', 'talent', 'suppliers', 'warehouse', 'talent_clients'].includes(activeTab) ? (
+                      <FolderOpen className="w-3.5 h-3.5 text-indigo-400" />
+                    ) : (
+                      <Folder className="w-3.5 h-3.5 text-indigo-400/90" />
+                    )}
+                    <span>Directorio & Bodega</span>
+                    {['clients', 'technicians', 'talent', 'suppliers', 'warehouse', 'talent_clients'].includes(activeTab) && (
+                      <span className="hidden xl:inline-block text-[10px] px-1.5 py-0.2 rounded-md bg-indigo-600/30 text-indigo-200 border border-indigo-500/30 font-semibold">
+                        {activeTab === 'clients'
+                          ? 'Clientes'
+                          : activeTab === 'technicians' || activeTab === 'talent'
+                          ? 'Talento Humano'
+                          : activeTab === 'suppliers'
+                          ? 'Proveedores'
+                          : 'Bodega'}
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${
+                        isResourcesMenuOpen ? 'rotate-180 text-sky-400' : ''
+                      }`}
+                    />
+                  </button>
 
-                <button
-                  onClick={() => onTabChange('supplier_bills')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                    activeTab === 'supplier_bills'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-                  Proveedores & Servicios Públicos
-                </button>
+                  {/* Resources Dropdown Menu */}
+                  {isResourcesMenuOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl shadow-black/80 z-[100] p-2 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl ring-1 ring-white/10">
+                      <div className="px-3 py-2 border-b border-slate-800/80 mb-1 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-indigo-400 font-bold text-xs">
+                          <FolderOpen className="w-4 h-4" />
+                          <span>Carpeta de Directorio & Bodega</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">4 módulos</span>
+                      </div>
 
-                <button
-                  onClick={() => onTabChange('talent_clients')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                    activeTab === 'talent_clients'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 text-indigo-400" />
-                  Talento & Clientes
-                </button>
+                      <div className="space-y-1">
+                        {/* 1. Clientes & Copropiedades */}
+                        <button
+                          onClick={() => {
+                            onTabChange('clients');
+                            setIsResourcesMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'clients'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-sky-950/80 border border-sky-700/60 text-sky-400 shrink-0 mt-0.5">
+                            <Building className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Clientes & Copropiedades</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-900/60 text-sky-300 font-semibold border border-sky-600/40">
+                                Clientes
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Copropiedades, administradores y equipos
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* 2. Talento Humano & Técnicos */}
+                        <button
+                          onClick={() => {
+                            onTabChange('technicians');
+                            setIsResourcesMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'technicians' || activeTab === 'talent'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-purple-950/80 border border-purple-700/60 text-purple-400 shrink-0 mt-0.5">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Talento Humano & Técnicos</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-300 font-semibold border border-purple-600/40">
+                                Personal
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Hojas de vida, contratos y licencias CONTE
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* 3. Directorio de Proveedores */}
+                        <button
+                          onClick={() => {
+                            onTabChange('suppliers');
+                            setIsResourcesMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'suppliers'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-indigo-950/80 border border-indigo-700/60 text-indigo-400 shrink-0 mt-0.5">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Proveedores & Servicios</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-900/60 text-indigo-300 font-semibold border border-indigo-600/40">
+                                Proveedores
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Directorio de repuestos, servicios y bancos
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* 4. Bodega & Repuestos */}
+                        <button
+                          onClick={() => {
+                            onTabChange('warehouse');
+                            setIsResourcesMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'warehouse'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 shrink-0 mt-0.5">
+                            <Boxes className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Bodega & Repuestos</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300 font-semibold border border-emerald-600/40">
+                                Stock
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Inventario, stock crítico y entradas/salidas
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Carpeta de Contabilidad (Dropdown Folder) */}
+                <div className="relative" ref={accountingMenuRef}>
+                  <button
+                    onClick={() => setIsAccountingMenuOpen(!isAccountingMenuOpen)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                      ['invoicing', 'finance', 'supplier_bills'].includes(activeTab)
+                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 font-bold shadow-sm shadow-sky-950'
+                        : isAccountingMenuOpen
+                        ? 'bg-slate-800 text-white border border-slate-700'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                    id="nav-tab-accounting-folder"
+                    title="Carpeta de Contabilidad: Facturación DIAN, Caja Menor y Cuentas por Pagar"
+                  >
+                    {isAccountingMenuOpen || ['invoicing', 'finance', 'supplier_bills'].includes(activeTab) ? (
+                      <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                    ) : (
+                      <Folder className="w-3.5 h-3.5 text-amber-400/90" />
+                    )}
+                    <span>Contabilidad</span>
+                    {['invoicing', 'finance', 'supplier_bills'].includes(activeTab) && (
+                      <span className="hidden xl:inline-block text-[10px] px-1.5 py-0.2 rounded-md bg-sky-600/30 text-sky-200 border border-sky-500/30 font-semibold">
+                        {activeTab === 'invoicing'
+                          ? 'Facturas'
+                          : activeTab === 'finance'
+                          ? 'Caja Menor'
+                          : 'Proveedores'}
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${
+                        isAccountingMenuOpen ? 'rotate-180 text-sky-400' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Accounting Dropdown Menu */}
+                  {isAccountingMenuOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-slate-900/95 border border-slate-700/90 rounded-2xl shadow-2xl shadow-black/80 z-[100] p-2 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl ring-1 ring-white/10">
+                      <div className="px-3 py-2 border-b border-slate-800/80 mb-1 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                          <FolderOpen className="w-4 h-4" />
+                          <span>Carpeta de Contabilidad</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">3 módulos</span>
+                      </div>
+
+                      <div className="space-y-1">
+                        {/* 1. Facturación Diaria & Pagos */}
+                        <button
+                          onClick={() => {
+                            onTabChange('invoicing');
+                            setIsAccountingMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'invoicing'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 shrink-0 mt-0.5">
+                            <Receipt className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Facturación Diaria & Pagos</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300 font-semibold border border-emerald-600/40">
+                                DIAN
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Facturación electrónica, cartera y cobros
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* 2. Caja Menor & Finanzas */}
+                        <button
+                          onClick={() => {
+                            onTabChange('finance');
+                            setIsAccountingMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'finance'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-700/60 text-cyan-400 shrink-0 mt-0.5">
+                            <TrendingUp className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Caja Menor & Finanzas</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-300 font-semibold border border-cyan-600/40">
+                                Caja
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Arqueos, anticipos, egresos y comprobantes
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* 3. Proveedores & Servicios Públicos */}
+                        <button
+                          onClick={() => {
+                            onTabChange('supplier_bills');
+                            setIsAccountingMenuOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 ${
+                            activeTab === 'supplier_bills'
+                              ? 'bg-sky-500/20 text-white border border-sky-500/40 font-bold'
+                              : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <div className="p-2 rounded-lg bg-indigo-950/80 border border-indigo-700/60 text-indigo-400 shrink-0 mt-0.5">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="text-xs font-bold text-white">Proveedores & Servicios</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-900/60 text-indigo-300 font-semibold border border-indigo-600/40">
+                                Cuentas x Pagar
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              Facturas de compras, servicios y bancos
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => onTabChange('dispatch_map')}
@@ -668,6 +939,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <FileText className="w-3.5 h-3.5 text-emerald-400" />
                   Hoja de Reporte Digital
+                </button>
+
+                <button
+                  onClick={() => onTabChange('tech_reports_history')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                    activeTab === 'tech_reports_history'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  id="nav-tab-tech-reports-history-tech"
+                >
+                  <FileText className="w-3.5 h-3.5 text-sky-400" />
+                  Historial Fichas del Mes
                 </button>
 
                 <button

@@ -13,6 +13,7 @@ import {
   CompanySettings,
   AdminProfile,
   SupplierBill,
+  Supplier,
   BankAccount,
   PaymentMethod,
   TechnicianGeolocationRecord,
@@ -28,6 +29,7 @@ import {
   INITIAL_ADMIN_PROFILE,
   INITIAL_ADMIN_PROFILES,
   INVENTORY_SPARE_PARTS,
+  INITIAL_SUPPLIERS,
   INITIAL_SUPPLIER_BILLS,
   INITIAL_BANK_ACCOUNTS,
 } from './data/mockData';
@@ -38,6 +40,7 @@ import { WorkOrdersAuditControl } from './components/admin/WorkOrdersAuditContro
 import { FinanceModule } from './components/admin/FinanceModule';
 import { InvoicingModule } from './components/admin/InvoicingModule';
 import { SupplierBillsModule } from './components/admin/SupplierBillsModule';
+import { SuppliersDirectory } from './components/admin/SuppliersDirectory';
 import { TalentAndClients } from './components/admin/TalentAndClients';
 import { TechnicianDashboard } from './components/field/TechnicianDashboard';
 import { DigitalReportSheet } from './components/field/DigitalReportSheet';
@@ -52,6 +55,7 @@ import { RejectRequestModal } from './components/admin/RejectRequestModal';
 import { NotificationDetailModal } from './components/common/NotificationDetailModal';
 import { ServiceRequestModal } from './components/common/ServiceRequestModal';
 import { VisitsCalendar } from './components/common/VisitsCalendar';
+import { MonthlyTechnicalReportsHistory } from './components/common/MonthlyTechnicalReportsHistory';
 import { WarehouseInventory } from './components/admin/WarehouseInventory';
 import { BrandLogo } from './components/BrandLogo';
 import { formatCOP } from './utils/formatters';
@@ -70,6 +74,13 @@ import {
   Link,
   ShieldCheck,
   Check,
+  Receipt,
+  TrendingUp,
+  Building2,
+  FolderOpen,
+  Building,
+  Users,
+  Boxes,
 } from 'lucide-react';
 
 const isCleanUrlMode = () => {
@@ -264,7 +275,17 @@ export default function App() {
     } catch {}
   }, [cashTransactions]);
 
-  // Supplier Bills and Bank Accounts State with LocalStorage Persistence
+  // Supplier Directory, Supplier Bills and Bank Accounts State with LocalStorage Persistence
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+    if (isCleanUrlMode()) return [];
+    try {
+      const saved = localStorage.getItem('ale_suppliers_store_v1');
+      return saved !== null ? JSON.parse(saved) : INITIAL_SUPPLIERS;
+    } catch {
+      return INITIAL_SUPPLIERS;
+    }
+  });
+
   const [supplierBills, setSupplierBills] = useState<SupplierBill[]>(() => {
     if (isCleanUrlMode()) return [];
     try {
@@ -283,6 +304,12 @@ export default function App() {
       return INITIAL_BANK_ACCOUNTS;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ale_suppliers_store_v1', JSON.stringify(suppliers));
+    } catch {}
+  }, [suppliers]);
 
   useEffect(() => {
     try {
@@ -568,22 +595,40 @@ export default function App() {
       )
     );
 
-    // 2. Automatically generate invoice for admin validation
+    // 2. Automatically check and apply client advance payments to the invoice
+    const matchingAdvances = cashTransactions.filter(
+      (t) =>
+        (t.type || 'INGRESO') === 'INGRESO' &&
+        (t.category === 'ANTICIPO_CLIENTE' || t.concept.toLowerCase().includes('anticipo')) &&
+        (
+          (t.clientName && t.clientName.toLowerCase().trim() === clientName.toLowerCase().trim()) ||
+          t.orderNumber === orderNum ||
+          (t.clientOrBeneficiary && t.clientOrBeneficiary.toLowerCase().trim() === clientName.toLowerCase().trim())
+        )
+    );
+    const advancePaymentCOP = matchingAdvances.reduce((acc, curr) => acc + curr.amountCOP, 0);
+    const advanceReceiptNumber = matchingAdvances.map((t) => t.receiptNumber).join(', ');
+    const netTotalCOP = Math.max(0, subtotalCOP + iva19COP - retencionFuenteCOP - advancePaymentCOP);
+
     const newInvoice: Invoice = {
       id: newInvoiceId,
       invoiceNumber: newInvNumber,
       orderId: orderId,
+      orderNumber: orderNum,
       clientName: clientName,
       clientNit: currentOrder?.clientNit || '900.823.119-4',
       clientAddress: currentOrder?.clientAddress || 'Calle 127 # 19-45',
       clientEmail: currentOrder?.clientEmail || 'facturacion@copropiedad.com',
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
-      paymentStatus: 'PENDIENTE',
+      paymentStatus: netTotalCOP === 0 ? 'PAGADO' : 'PENDIENTE',
+      paymentMethod: netTotalCOP === 0 ? 'EFECTIVO' : undefined,
       subtotalCOP,
       iva19COP,
       retencionFuenteCOP,
-      totalCOP,
+      advancePaymentCOP: advancePaymentCOP > 0 ? advancePaymentCOP : undefined,
+      advanceReceiptNumber: advanceReceiptNumber || undefined,
+      totalCOP: netTotalCOP,
       items: [
         {
           id: `item-labor-${Date.now()}`,
@@ -953,7 +998,67 @@ export default function App() {
   };
 
   const handleAddCashTransaction = (tx: CashTransaction) => {
-    setCashTransactions([tx, ...cashTransactions]);
+    setCashTransactions((prev) => [tx, ...prev]);
+
+    // If it's a client advance payment (ANTICIPO_CLIENTE), automatically discount it from the client's final invoice
+    if (
+      (tx.type || 'INGRESO') === 'INGRESO' &&
+      (tx.category === 'ANTICIPO_CLIENTE' || (tx.concept && tx.concept.toLowerCase().includes('anticipo')))
+    ) {
+      const clientTarget = (tx.clientName || tx.clientOrBeneficiary || '').toLowerCase().trim();
+      const orderTarget = tx.orderNumber?.toLowerCase().trim();
+
+      let discounted = false;
+      let matchedInvNum = '';
+      let matchedClient = tx.clientName || 'Cliente';
+
+      setInvoices((prevInvoices) => {
+        return prevInvoices.map((inv) => {
+          const matchClient =
+            clientTarget &&
+            (inv.clientName.toLowerCase().trim() === clientTarget ||
+              inv.clientName.toLowerCase().includes(clientTarget) ||
+              clientTarget.includes(inv.clientName.toLowerCase().trim()));
+          const matchOrder = orderTarget && inv.orderNumber && inv.orderNumber.toLowerCase().trim() === orderTarget;
+
+          if ((matchClient || matchOrder) && !discounted) {
+            discounted = true;
+            matchedInvNum = inv.invoiceNumber;
+            matchedClient = inv.clientName;
+            const currentAdvance = inv.advancePaymentCOP || 0;
+            const newAdvance = currentAdvance + tx.amountCOP;
+            const baseGross = inv.subtotalCOP + inv.iva19COP - (inv.retencionFuenteCOP || 0);
+            const newTotalCOP = Math.max(0, baseGross - newAdvance);
+
+            return {
+              ...inv,
+              advancePaymentCOP: newAdvance,
+              advanceReceiptNumber: inv.advanceReceiptNumber
+                ? `${inv.advanceReceiptNumber}, ${tx.receiptNumber}`
+                : tx.receiptNumber,
+              totalCOP: newTotalCOP,
+              paymentStatus: newTotalCOP === 0 ? 'PAGADO' : inv.paymentStatus,
+              paymentMethod: newTotalCOP === 0 ? 'EFECTIVO' : inv.paymentMethod,
+              paidDate: newTotalCOP === 0 ? new Date().toISOString().slice(0, 10) : inv.paidDate,
+            };
+          }
+          return inv;
+        });
+      });
+
+      // Real-time Notification
+      const notif: AppNotification = {
+        id: `notif-adv-${Date.now()}`,
+        title: 'Anticipo Aplicado a Factura Final',
+        message: `Se registró el recibo de anticipo ${tx.receiptNumber} por ${formatCOP(tx.amountCOP)} de ${matchedClient}. El anticipo se descontó automáticamente de la factura final del cliente.`,
+        type: 'INVOICE_GENERATED',
+        targetRole: 'admin',
+        timestamp: 'Justo ahora',
+        read: false,
+        actionTab: 'invoicing_dian',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+    }
   };
 
   const handleAddSupplierBill = (bill: SupplierBill) => {
@@ -1023,6 +1128,51 @@ export default function App() {
 
   const handleDeleteSupplierBill = (billId: string) => {
     setSupplierBills((prev) => prev.filter((b) => b.id !== billId));
+  };
+
+  // Supplier Directory CRUD Handlers
+  const handleAddSupplier = (supplierData: Omit<Supplier, 'id'>) => {
+    const newSupplier: Supplier = {
+      ...supplierData,
+      id: `supp-${Date.now()}`,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    setSuppliers((prev) => [newSupplier, ...prev]);
+
+    const notif: AppNotification = {
+      id: `notif-supp-${Date.now()}`,
+      title: 'Nuevo Proveedor Registrado',
+      message: `Se ha registrado al proveedor "${newSupplier.name}" (${newSupplier.nitOrDocument}) en el directorio comercial.`,
+      type: 'INVOICE_GENERATED',
+      targetRole: 'admin',
+      timestamp: 'Justo ahora',
+      read: false,
+      actionTab: 'suppliers',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
+  const handleUpdateSupplier = (id: string, updated: Partial<Supplier>) => {
+    setSuppliers((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
+  };
+
+  const handleDeleteSupplier = (id: string) => {
+    const supplierToDelete = suppliers.find((s) => s.id === id);
+    setSuppliers((prev) => prev.filter((s) => s.id !== id));
+
+    if (supplierToDelete) {
+      const notif: AppNotification = {
+        id: `notif-supp-del-${Date.now()}`,
+        title: 'Proveedor Eliminado',
+        message: `El proveedor "${supplierToDelete.name}" ha sido eliminado del directorio.`,
+        type: 'INVOICE_GENERATED',
+        targetRole: 'admin',
+        timestamp: 'Justo ahora',
+        read: false,
+        actionTab: 'suppliers',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+    }
   };
 
   const handleAddBankAccount = (account: BankAccount) => {
@@ -1287,6 +1437,25 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'tech_reports_history' && (
+              <MonthlyTechnicalReportsHistory
+                orders={orders}
+                invoices={invoices}
+                technicians={technicians}
+                clients={clients}
+                onSelectOrderForReport={(order) => {
+                  setSelectedOrderForReport(order);
+                  setActiveTab('tech_report');
+                }}
+                onViewInvoice={(invoiceId) => {
+                  setActiveTab('invoicing');
+                }}
+                onApproveReport={handleApproveReport}
+                onRejectReport={handleRejectReport}
+                currentRole={effectiveRole}
+              />
+            )}
+
             {activeTab === 'invoicing' && (
               <InvoicingModule
                 invoices={invoices}
@@ -1302,6 +1471,8 @@ export default function App() {
                 invoices={invoices}
                 cashTransactions={cashTransactions}
                 orders={orders}
+                technicians={technicians}
+                clients={clients}
                 onAddCashTransaction={handleAddCashTransaction}
                 onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
               />
@@ -1319,16 +1490,40 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'talent_clients' && (
+            {activeTab === 'clients' && (
               <TalentAndClients
                 technicians={technicians}
                 clients={clients}
+                defaultTab="clients"
                 onAddTechnician={handleAddTechnician}
                 onUpdateTechnician={handleUpdateTechnician}
                 onDeleteTechnician={handleDeleteTechnician}
                 onAddClient={handleAddClient}
                 onUpdateClient={handleUpdateClient}
                 onDeleteClient={handleDeleteClient}
+              />
+            )}
+
+            {(activeTab === 'technicians' || activeTab === 'talent' || activeTab === 'talent_clients') && (
+              <TalentAndClients
+                technicians={technicians}
+                clients={clients}
+                defaultTab="technicians"
+                onAddTechnician={handleAddTechnician}
+                onUpdateTechnician={handleUpdateTechnician}
+                onDeleteTechnician={handleDeleteTechnician}
+                onAddClient={handleAddClient}
+                onUpdateClient={handleUpdateClient}
+                onDeleteClient={handleDeleteClient}
+              />
+            )}
+
+            {activeTab === 'suppliers' && (
+              <SuppliersDirectory
+                suppliers={suppliers}
+                onAddSupplier={handleAddSupplier}
+                onUpdateSupplier={handleUpdateSupplier}
+                onDeleteSupplier={handleDeleteSupplier}
               />
             )}
 
@@ -1392,6 +1587,21 @@ export default function App() {
                   />
                 )}
 
+                {activeTab === 'tech_reports_history' && (
+                  <MonthlyTechnicalReportsHistory
+                    orders={orders}
+                    invoices={invoices}
+                    technicians={technicians}
+                    clients={clients}
+                    onSelectOrderForReport={(order) => {
+                      setSelectedOrderForReport(order);
+                      setActiveTab('tech_report');
+                    }}
+                    onViewInvoice={(invoiceId) => {}}
+                    currentRole={effectiveRole}
+                  />
+                )}
+
                 {activeTab === 'warehouse' && (
                   <WarehouseInventory
                     spareParts={spareParts}
@@ -1399,6 +1609,43 @@ export default function App() {
                     onUpdateSparePart={handleUpdateSparePartById}
                     onDeleteSparePart={handleDeleteSparePart}
                     onQuickStockAdjust={handleQuickStockAdjust}
+                  />
+                )}
+
+                {activeTab === 'suppliers' && (
+                  <SuppliersDirectory
+                    suppliers={suppliers}
+                    onAddSupplier={handleAddSupplier}
+                    onUpdateSupplier={handleUpdateSupplier}
+                    onDeleteSupplier={handleDeleteSupplier}
+                  />
+                )}
+
+                {activeTab === 'clients' && (
+                  <TalentAndClients
+                    technicians={technicians}
+                    clients={clients}
+                    defaultTab="clients"
+                    onAddTechnician={handleAddTechnician}
+                    onUpdateTechnician={handleUpdateTechnician}
+                    onDeleteTechnician={handleDeleteTechnician}
+                    onAddClient={handleAddClient}
+                    onUpdateClient={handleUpdateClient}
+                    onDeleteClient={handleDeleteClient}
+                  />
+                )}
+
+                {(activeTab === 'technicians' || activeTab === 'talent') && (
+                  <TalentAndClients
+                    technicians={technicians}
+                    clients={clients}
+                    defaultTab="technicians"
+                    onAddTechnician={handleAddTechnician}
+                    onUpdateTechnician={handleUpdateTechnician}
+                    onDeleteTechnician={handleDeleteTechnician}
+                    onAddClient={handleAddClient}
+                    onUpdateClient={handleUpdateClient}
+                    onDeleteClient={handleDeleteClient}
                   />
                 )}
 

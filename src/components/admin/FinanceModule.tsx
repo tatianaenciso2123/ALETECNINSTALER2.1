@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Invoice, CashTransaction, WorkOrder, CashTransactionType, CashCategory } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { Invoice, CashTransaction, WorkOrder, CashTransactionType, CashCategory, Technician, ClientAccount } from '../../types';
 import { formatCOP, formatDate, formatDateTime } from '../../utils/formatters';
 import { BrandLogo } from '../BrandLogo';
 import {
@@ -28,12 +28,17 @@ import {
   Tag,
   UserCheck,
   Building2,
+  User,
+  Shield,
+  Sparkles,
 } from 'lucide-react';
 
 interface FinanceModuleProps {
   invoices: Invoice[];
   cashTransactions: CashTransaction[];
   orders: WorkOrder[];
+  technicians?: Technician[];
+  clients?: ClientAccount[];
   onAddCashTransaction: (transaction: CashTransaction) => void;
   onUpdateInvoiceStatus: (invoiceId: string, status: 'PAGADO' | 'PENDIENTE', method?: any) => void;
 }
@@ -42,6 +47,8 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   invoices,
   cashTransactions,
   orders,
+  technicians = [],
+  clients = [],
   onAddCashTransaction,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'cash_book' | 'profitability'>('overview');
@@ -58,8 +65,31 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const [newCashClient, setNewCashClient] = useState('');
   const [newCashCategory, setNewCashCategory] = useState<CashCategory>('RECAUDO_SERVICIO');
   const [newCashConcept, setNewCashConcept] = useState('');
-  const [newCashTech, setNewCashTech] = useState('Ing. Carlos Andrés Restrepo');
+  const [newCashTech, setNewCashTech] = useState('Alejandra Cruz');
+  const [newCashAuthorizedBy, setNewCashAuthorizedBy] = useState('Tatiana Enciso');
   const [newCashOrderNo, setNewCashOrderNo] = useState('');
+
+  // Find matching pending invoice for advance deduction preview
+  const matchedInvoice = useMemo(() => {
+    if (txType !== 'INGRESO' || newCashCategory !== 'ANTICIPO_CLIENTE' || !newCashClient.trim()) return null;
+    const target = newCashClient.toLowerCase().trim();
+    return (
+      invoices.find(
+        (inv) =>
+          inv.paymentStatus === 'PENDIENTE' &&
+          (inv.clientName.toLowerCase().trim() === target ||
+            inv.clientName.toLowerCase().includes(target) ||
+            target.includes(inv.clientName.toLowerCase().trim()) ||
+            (newCashOrderNo && inv.orderNumber && inv.orderNumber.toLowerCase().includes(newCashOrderNo.toLowerCase())))
+      ) ||
+      invoices.find(
+        (inv) =>
+          inv.clientName.toLowerCase().trim() === target ||
+          inv.clientName.toLowerCase().includes(target) ||
+          target.includes(inv.clientName.toLowerCase().trim())
+      )
+    );
+  }, [invoices, txType, newCashCategory, newCashClient, newCashOrderNo]);
 
   // Initial petty cash fund constant
   const INITIAL_CASH_FUND = 1500000;
@@ -90,7 +120,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
   const handleCreateCashReceipt = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCashAmount || !newCashClient) return;
+    if (!newCashAmount) return;
+
+    const recipientOrClient = txType === 'INGRESO' ? newCashClient : newCashTech;
+    if (txType === 'INGRESO' && !newCashClient) return;
 
     const prefix = txType === 'INGRESO' ? 'RC' : 'CE'; // RC: Recibo de Caja, CE: Comprobante de Egreso
     const receipt: CashTransaction = {
@@ -100,10 +133,14 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       type: txType,
       category: newCashCategory,
       orderNumber: newCashOrderNo || (txType === 'INGRESO' ? 'OT-2026-COBRO' : 'GASTO-OPERATIVO'),
-      clientName: newCashClient,
+      clientName: recipientOrClient,
+      clientOrBeneficiary: recipientOrClient,
       amountCOP: parseFloat(newCashAmount),
       receivedByTechnician: newCashTech,
-      concept: newCashConcept || (txType === 'INGRESO' ? 'Recaudo en efectivo servicio hidráulico' : 'Gasto menor operativo'),
+      receivedBy: newCashTech,
+      authorizedByAdmin: newCashAuthorizedBy,
+      verifiedByAdmin: newCashAuthorizedBy,
+      concept: newCashConcept || (txType === 'INGRESO' ? 'Recaudo en efectivo servicio hidráulico' : `Egreso para ${newCashTech}`),
       status: txType === 'INGRESO' ? 'PENDIENTE_ARQUEO' : 'ARQUEADO_EN_CAJA',
     };
 
@@ -113,6 +150,8 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     setNewCashClient('');
     setNewCashConcept('');
     setNewCashOrderNo('');
+    setNewCashTech(txType === 'EGRESO' ? 'Alejandra Cruz' : 'Alejandra Cruz');
+    setNewCashAuthorizedBy('Tatiana Enciso');
   };
 
   // Filtered cash transactions
@@ -122,11 +161,12 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
     if (cashSearch.trim()) {
       const q = cashSearch.toLowerCase();
-      const matchNum = tx.receiptNumber.toLowerCase().includes(q);
-      const matchClient = tx.clientName.toLowerCase().includes(q);
-      const matchConcept = tx.concept.toLowerCase().includes(q);
-      const matchTech = tx.receivedByTechnician.toLowerCase().includes(q);
-      if (!matchNum && !matchClient && !matchConcept && !matchTech) return false;
+      const matchNum = tx.receiptNumber?.toLowerCase().includes(q) || false;
+      const matchClient = (tx.clientName || tx.clientOrBeneficiary || '')?.toLowerCase().includes(q);
+      const matchConcept = tx.concept?.toLowerCase().includes(q) || false;
+      const matchTech = (tx.receivedBy || tx.receivedByTechnician || '')?.toLowerCase().includes(q);
+      const matchAuth = (tx.authorizedByAdmin || tx.verifiedByAdmin || '')?.toLowerCase().includes(q);
+      if (!matchNum && !matchClient && !matchConcept && !matchTech && !matchAuth) return false;
     }
     return true;
   });
@@ -447,9 +487,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   <th className="p-3">Comprobante No.</th>
                   <th className="p-3">Fecha</th>
                   <th className="p-3">Tipo</th>
-                  <th className="p-3">Beneficiario / Cliente</th>
+                  <th className="p-3">Quién Recibe / Cliente</th>
                   <th className="p-3">Concepto & Categoría</th>
-                  <th className="p-3">Responsable</th>
+                  <th className="p-3">Autoriza / Entrega</th>
                   <th className="p-3 text-right">Monto COP</th>
                   <th className="p-3 text-center">Acción</th>
                 </tr>
@@ -457,6 +497,8 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                 {filteredCashTransactions.map((tx) => {
                   const isIncome = (tx.type || 'INGRESO') === 'INGRESO';
+                  const recipient = tx.receivedBy || tx.receivedByTechnician || tx.clientName || tx.clientOrBeneficiary || 'N/A';
+                  const authorizer = tx.authorizedByAdmin || tx.verifiedByAdmin || 'Tatiana Enciso';
                   return (
                     <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                       <td className="p-3 font-mono font-bold text-sky-600 dark:text-sky-400">
@@ -476,8 +518,20 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                           </span>
                         )}
                       </td>
-                      <td className="p-3 font-semibold text-slate-900 dark:text-white">
-                        {tx.clientName}
+                      <td className="p-3">
+                        <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          {isIncome ? (
+                            <Building className="w-3.5 h-3.5 text-slate-400" />
+                          ) : (
+                            <User className="w-3.5 h-3.5 text-rose-500" />
+                          )}
+                          <span>{isIncome ? tx.clientName : recipient}</span>
+                        </div>
+                        {isIncome && tx.receivedByTechnician && (
+                          <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <span>Recibió:</span> <span className="font-medium">{tx.receivedByTechnician}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 max-w-xs">
                         <div className="font-medium text-slate-800 dark:text-slate-200 truncate">{tx.concept}</div>
@@ -485,7 +539,12 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                           <div className="text-[10px] text-slate-400 font-mono">Ref: {tx.orderNumber}</div>
                         )}
                       </td>
-                      <td className="p-3 text-slate-600 dark:text-slate-400">{tx.receivedByTechnician}</td>
+                      <td className="p-3">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px]">
+                          <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>{authorizer}</span>
+                        </div>
+                      </td>
                       <td className={`p-3 text-right font-black font-mono text-sm ${
                         isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                       }`}>
@@ -571,6 +630,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 onClick={() => {
                   setTxType('INGRESO');
                   setNewCashCategory('RECAUDO_SERVICIO');
+                  setNewCashTech('Alejandra Cruz');
                 }}
                 className={`py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
                   txType === 'INGRESO'
@@ -587,6 +647,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 onClick={() => {
                   setTxType('EGRESO');
                   setNewCashCategory('GASTO_FERRETERIA');
+                  setNewCashTech('Alejandra Cruz');
                 }}
                 className={`py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
                   txType === 'EGRESO'
@@ -601,19 +662,157 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
             <form onSubmit={handleCreateCashReceipt} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {txType === 'INGRESO' ? 'Copropiedad, Cliente o Pagador: *' : 'Beneficiario / Comercio / Proveedor: *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newCashClient}
-                    onChange={(e) => setNewCashClient(e.target.value)}
-                    placeholder={txType === 'INGRESO' ? 'Ej: Conjunto Residencial Santa Ana' : 'Ej: Ferretería Central / Parqueadero'}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
-                  />
-                </div>
+                {txType === 'INGRESO' ? (
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        {newCashCategory === 'ANTICIPO_CLIENTE' && <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
+                        {newCashCategory === 'ANTICIPO_CLIENTE'
+                          ? 'Nombre del Cliente / Copropiedad (Anticipo a Descontar): *'
+                          : 'Copropiedad, Cliente o Pagador: *'}
+                      </span>
+                      {clients.length > 0 && (
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          (Selecciona o escribe el nombre)
+                        </span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        list="client-suggestions"
+                        value={newCashClient}
+                        onChange={(e) => setNewCashClient(e.target.value)}
+                        placeholder="Ej: Conjunto Residencial Santa Ana"
+                        className={`w-full px-3 py-2.5 rounded-xl border font-medium ${
+                          newCashCategory === 'ANTICIPO_CLIENTE'
+                            ? 'border-amber-400 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-950/20 text-slate-900 dark:text-white font-bold'
+                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800'
+                        }`}
+                      />
+                      <datalist id="client-suggestions">
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.companyName} />
+                        ))}
+                      </datalist>
+                    </div>
+
+                    {/* Quick Client Selection Pills */}
+                    {clients.length > 0 && !newCashClient && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        <span className="text-[10px] text-slate-400 self-center">Sugeridos:</span>
+                        {clients.slice(0, 4).map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setNewCashClient(c.companyName);
+                              if (newCashCategory === 'ANTICIPO_CLIENTE' && !newCashConcept) {
+                                setNewCashConcept(`Anticipo de ${c.companyName} para intervención hidráulica`);
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 text-[10px] text-slate-700 dark:text-slate-300 font-medium transition-colors"
+                          >
+                            {c.companyName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Automated Invoice Deduction Preview Banner for Anticipos */}
+                    {newCashCategory === 'ANTICIPO_CLIENTE' && (
+                      <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/50 rounded-xl border border-amber-300 dark:border-amber-700/80 text-amber-950 dark:text-amber-200 text-xs space-y-1.5 shadow-sm">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                          <Sparkles className="w-4 h-4 text-amber-600" />
+                          <span>Descuento Automático en Factura Final Activado</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+                          Al registrar este recibo de caja, el monto de{' '}
+                          <strong className="font-bold text-amber-950 dark:text-white font-mono">
+                            {formatCOP(parseFloat(newCashAmount) || 0)}
+                          </strong>{' '}
+                          se descontará automáticamente de la factura final del cliente y se reflejará en su balance contable.
+                        </p>
+                        {matchedInvoice ? (
+                          <div className="mt-1.5 p-2 bg-white/90 dark:bg-slate-900/90 rounded-lg border border-amber-200 dark:border-amber-800/80 text-[11px] space-y-1">
+                            <div className="flex items-center justify-between font-semibold">
+                              <span className="text-slate-700 dark:text-slate-300">
+                                Factura Pendiente Detectada:{' '}
+                                <span className="font-mono text-sky-600 font-bold">{matchedInvoice.invoiceNumber}</span>
+                              </span>
+                              <span className="text-slate-400 text-[10px]">{matchedInvoice.issueDate}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                              <span>Total Actual Factura: {formatCOP(matchedInvoice.totalCOP)}</span>
+                              <span className="font-black text-emerald-600 dark:text-emerald-400">
+                                Saldo tras Descontar Anticipo:{' '}
+                                {formatCOP(Math.max(0, matchedInvoice.totalCOP - (parseFloat(newCashAmount) || 0)))}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-amber-700 dark:text-amber-400 italic">
+                            (Si el cliente aún no tiene factura emitida, el anticipo se descontará automáticamente cuando el técnico genere el informe y se emita la factura).
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Quién Recibe: *
+                    </label>
+                    <select
+                      value={newCashTech}
+                      onChange={(e) => setNewCashTech(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
+                    >
+                      <optgroup label="Empleados">
+                        {technicians.length > 0 ? (
+                          technicians.map((t) => (
+                            <option key={t.id} value={t.fullName}>
+                              {t.fullName}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="Alejandra Cruz">Alejandra Cruz</option>
+                        )}
+                        {!technicians.some((t) => t.fullName.includes('Alejandra Cruz')) && (
+                          <option value="Alejandra Cruz">Alejandra Cruz</option>
+                        )}
+                      </optgroup>
+                      <optgroup label="Proveedores">
+                        <option value="Proveedor (Repuestos)">Proveedor (Repuestos)</option>
+                      </optgroup>
+                      <optgroup label="Servicios">
+                        <option value="Servicio (Agua)">Servicio (Agua)</option>
+                        <option value="Servicio (Luz)">Servicio (Luz)</option>
+                        <option value="Servicio (Internet)">Servicio (Internet)</option>
+                        <option value="Servicio (Gas)">Servicio (Gas)</option>
+                        <option value="Servicio (Parqueadero)">Servicio (Parqueadero)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                )}
+
+                {txType === 'EGRESO' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+                      Quién Autoriza o Entrega: *
+                    </label>
+                    <select
+                      value={newCashAuthorizedBy}
+                      onChange={(e) => setNewCashAuthorizedBy(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold"
+                    >
+                      <option value="Tatiana Enciso">Tatiana Enciso (Administradora / Gerencia)</option>
+                      <option value="Alejandra Cruz">Alejandra Cruz (Administradora / Operaciones)</option>
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -659,31 +858,60 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    {txType === 'INGRESO' ? 'Técnico que Recibe Dinero:' : 'Técnico que Realiza el Gasto:'}
-                  </label>
-                  <select
-                    value={newCashTech}
-                    onChange={(e) => setNewCashTech(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
-                  >
-                    <option value="Ing. Carlos Andrés Restrepo">Ing. Carlos Andrés Restrepo</option>
-                    <option value="Tec. Mauricio Galvis Pardo">Tec. Mauricio Galvis Pardo</option>
-                    <option value="Tec. Jhon Fredy Benítez">Tec. Jhon Fredy Benítez</option>
-                    <option value="Ing. David Fernando Lozano">Ing. David Fernando Lozano</option>
-                  </select>
-                </div>
+                {txType === 'INGRESO' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Técnico que Recibe Dinero:
+                    </label>
+                    <select
+                      value={newCashTech}
+                      onChange={(e) => setNewCashTech(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
+                    >
+                      <optgroup label="Empleados">
+                        {technicians.length > 0 ? (
+                          technicians.map((t) => (
+                            <option key={t.id} value={t.fullName}>
+                              {t.fullName}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="Alejandra Cruz">Alejandra Cruz</option>
+                        )}
+                        {!technicians.some((t) => t.fullName.includes('Alejandra Cruz')) && (
+                          <option value="Alejandra Cruz">Alejandra Cruz</option>
+                        )}
+                      </optgroup>
+                    </select>
+                  </div>
+                )}
 
-                <div>
+                {txType === 'INGRESO' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+                      Quién Autoriza o Custodia: *
+                    </label>
+                    <select
+                      value={newCashAuthorizedBy}
+                      onChange={(e) => setNewCashAuthorizedBy(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold"
+                    >
+                      <option value="Tatiana Enciso">Tatiana Enciso (Administradora / Gerencia)</option>
+                      <option value="Alejandra Cruz">Alejandra Cruz (Administradora / Operaciones)</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className={txType === 'INGRESO' ? 'sm:col-span-2' : ''}>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    No. Orden de Trabajo / Referencia:
+                    No. Orden de Trabajo / Factura / Referencia:
                   </label>
                   <input
                     type="text"
                     value={newCashOrderNo}
                     onChange={(e) => setNewCashOrderNo(e.target.value)}
-                    placeholder="Ej: OT-2026-0819"
+                    placeholder={txType === 'INGRESO' ? 'Ej: OT-2026-084' : 'Ej: FAC-EAAB-1094 / Turno Urgencias'}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono font-medium"
                   />
                 </div>
@@ -697,7 +925,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                     required
                     value={newCashConcept}
                     onChange={(e) => setNewCashConcept(e.target.value)}
-                    placeholder={txType === 'INGRESO' ? 'Ej: Recaudo por mantenimiento preventivo y sellos mecánicos' : 'Ej: Compra de 2 uniones universales PVC 2 pulg y pegante rápido'}
+                    placeholder={txType === 'INGRESO' ? 'Ej: Recaudo por mantenimiento preventivo y sellos mecánicos' : 'Ej: Compra de sellos mecánicos 1 pulg y teflón industrial'}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
                   />
                 </div>
@@ -769,10 +997,24 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 {(viewingReceipt.type || 'INGRESO') === 'INGRESO' ? '+' : '-'}{formatCOP(viewingReceipt.amountCOP)}
               </div>
 
-              <div className="space-y-1 text-slate-700 dark:text-slate-300">
-                <div><strong>{(viewingReceipt.type || 'INGRESO') === 'INGRESO' ? 'Pagador / Cliente:' : 'Beneficiario / Proveedor:'}</strong> {viewingReceipt.clientName}</div>
+              <div className="space-y-1.5 text-slate-700 dark:text-slate-300 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                <div>
+                  <strong>{(viewingReceipt.type || 'INGRESO') === 'INGRESO' ? 'Pagador / Cliente:' : 'Quién Recibe / Beneficiario:'}</strong>{' '}
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {viewingReceipt.receivedBy || viewingReceipt.clientName || viewingReceipt.receivedByTechnician}
+                  </span>
+                </div>
+                <div>
+                  <strong>Quién Autoriza o Entrega:</strong>{' '}
+                  <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 dark:text-indigo-300">
+                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                    {viewingReceipt.authorizedByAdmin || viewingReceipt.verifiedByAdmin || 'Tatiana Enciso'}
+                  </span>
+                </div>
                 <div><strong>Concepto:</strong> {viewingReceipt.concept}</div>
-                <div><strong>Responsable:</strong> {viewingReceipt.receivedByTechnician}</div>
+                {viewingReceipt.category && (
+                  <div><strong>Categoría:</strong> {viewingReceipt.category}</div>
+                )}
                 {viewingReceipt.orderNumber && (
                   <div><strong>Referencia / OT:</strong> {viewingReceipt.orderNumber}</div>
                 )}

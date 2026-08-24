@@ -151,6 +151,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             Bodega Repuestos
           </button>
 
+          <button
+            onClick={() => onSelectTab('tech_reports_history')}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 rounded-xl hover:bg-sky-100 transition-colors"
+            title="Historial de Fichas Técnicas Realizadas en el Mes"
+          >
+            <FileText className="w-4 h-4 text-sky-600" />
+            Historial Fichas Mes
+          </button>
+
           {onOpenServiceRequest ? (
             <button
               onClick={onOpenServiceRequest}

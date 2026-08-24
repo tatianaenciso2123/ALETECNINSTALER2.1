@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Technician, ClientAccount, InstalledEquipment } from '../../types';
 import { formatCOP, formatDate } from '../../utils/formatters';
 import {
@@ -36,6 +36,7 @@ import {
 interface TalentAndClientsProps {
   technicians: Technician[];
   clients: ClientAccount[];
+  defaultTab?: 'technicians' | 'clients';
   onAddTechnician: (tech: Technician) => void;
   onUpdateTechnician: (tech: Technician) => void;
   onDeleteTechnician: (techId: string) => void;
@@ -66,6 +67,7 @@ const PRESET_CLIENT_AVATARS = [
 export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
   technicians,
   clients,
+  defaultTab = 'technicians',
   onAddTechnician,
   onUpdateTechnician,
   onDeleteTechnician,
@@ -73,7 +75,14 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
   onUpdateClient,
   onDeleteClient,
 }) => {
-  const [activeTab, setActiveTab] = useState<'technicians' | 'clients'>('technicians');
+  const [activeTab, setActiveTab] = useState<'technicians' | 'clients'>(defaultTab);
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientAccount | null>(clients[0] || null);
 

@@ -355,6 +355,15 @@ export const FinanceAndInvoicing: React.FC<FinanceAndInvoicingProps> = ({
                           <span className="font-semibold">-{formatCOP(selectedInvoice.retencionFuenteCOP)}</span>
                         </div>
                       )}
+                      {selectedInvoice.advancePaymentCOP && selectedInvoice.advancePaymentCOP > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                          <span>
+                            (-) Anticipo en Caja{' '}
+                            {selectedInvoice.advanceReceiptNumber ? `(${selectedInvoice.advanceReceiptNumber})` : ''}:
+                          </span>
+                          <span>-{formatCOP(selectedInvoice.advancePaymentCOP)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-2 border-t border-slate-300 dark:border-slate-700">
                         <span>Total a Pagar:</span>
                         <span className="text-sky-600 dark:text-sky-400">{formatCOP(selectedInvoice.totalCOP)}</span>

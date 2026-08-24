@@ -386,6 +386,11 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
                       <div className="text-[10px] text-slate-400">
                         Subtotal: {formatCOP(inv.subtotalCOP)} + IVA {formatCOP(inv.iva19COP)}
                       </div>
+                      {inv.advancePaymentCOP && inv.advancePaymentCOP > 0 && (
+                        <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
+                          <span>(-) Anticipo descontado: {formatCOP(inv.advancePaymentCOP)}</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* FORMA DE PAGO AL LADO (Explicit requested column) */}
@@ -591,6 +596,15 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
                   <div className="flex justify-between text-slate-500">
                     <span>ReteFuente (4%):</span>
                     <span className="font-medium text-rose-600">-{formatCOP(selectedInvoiceForModal.retencionFuenteCOP)}</span>
+                  </div>
+                )}
+                {selectedInvoiceForModal.advancePaymentCOP && selectedInvoiceForModal.advancePaymentCOP > 0 && (
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                    <span>
+                      (-) Anticipo Recibido en Caja{' '}
+                      {selectedInvoiceForModal.advanceReceiptNumber ? `(${selectedInvoiceForModal.advanceReceiptNumber})` : ''}:
+                    </span>
+                    <span>-{formatCOP(selectedInvoiceForModal.advancePaymentCOP)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-base font-black text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-800">

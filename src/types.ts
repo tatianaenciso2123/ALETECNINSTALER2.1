@@ -59,6 +59,40 @@ export interface BankAccount {
   description?: string;
 }
 
+export type SupplierCategory =
+  | 'REPUESTOS_HIDRAULICOS'
+  | 'TUBERIAS_VALVULAS'
+  | 'EQUIPOS_BOMBAS'
+  | 'AUTOMATIZACION_VFD'
+  | 'GRIFERIAS_SANITARIOS'
+  | 'SERVICIOS_PUBLICOS'
+  | 'HERRAMIENTAS_MAQUINARIA'
+  | 'CONTRATISTAS_SERVICIOS'
+  | 'QUIMICOS_CONSUMIBLES'
+  | 'OTRO_SERVICIO';
+
+export interface Supplier {
+  id: string;
+  name: string;
+  commercialName?: string;
+  nitOrDocument: string;
+  category: SupplierCategory;
+  contactPerson: string;
+  phone: string;
+  whatsapp?: string;
+  email: string;
+  address: string;
+  city: string;
+  suppliedProductsOrServices: string;
+  paymentTerms: string;
+  bankAccountInfo?: string;
+  website?: string;
+  rating?: number;
+  status: 'ACTIVO' | 'INACTIVO';
+  notes?: string;
+  createdAt?: string;
+}
+
 export type BillCategory =
   | 'SERVICIO_PUBLICO_AGUA'
   | 'SERVICIO_PUBLICO_ENERGIA'
@@ -315,6 +349,8 @@ export interface Invoice {
   subtotalCOP: number;
   iva19COP: number;
   retencionFuenteCOP: number; // 4% sobre mano de obra o compras
+  advancePaymentCOP?: number; // Anticipo pagado previamente por el cliente
+  advanceReceiptNumber?: string; // No. de comprobante/recibo de caja del anticipo
   totalCOP: number;
   paymentMethod?: PaymentMethod;
   paymentStatus: PaymentStatus;
@@ -442,7 +478,8 @@ export interface CashTransaction {
   clientOrBeneficiary?: string; // Nombre del cliente o beneficiario/proveedor
   amountCOP: number;
   receivedByTechnician?: string;
-  authorizedByAdmin?: string;
+  receivedBy?: string; // Nombre de empleado, proveedor o servicio que recibe
+  authorizedByAdmin?: string; // Nombre de la administradora que autoriza/entrega (Tatiana Enciso o Alejandra Cruz)
   concept: string;
   category?: string; // e.g. "Recaudo Servicio Técnico", "Venta Repuesto", "Compra Insumos Ferretería", "Viáticos y Transporte", "Servicios Públicos", "Caja Menor"
   status: 'PENDIENTE_ARQUEO' | 'ARQUEADO_EN_CAJA' | 'DEPOSITADO_BANCO';
