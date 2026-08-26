@@ -1495,6 +1495,7 @@ export default function App() {
                 technicians={technicians}
                 clients={clients}
                 defaultTab="clients"
+                currentRole={effectiveRole}
                 onAddTechnician={handleAddTechnician}
                 onUpdateTechnician={handleUpdateTechnician}
                 onDeleteTechnician={handleDeleteTechnician}
@@ -1509,6 +1510,7 @@ export default function App() {
                 technicians={technicians}
                 clients={clients}
                 defaultTab="technicians"
+                currentRole={effectiveRole}
                 onAddTechnician={handleAddTechnician}
                 onUpdateTechnician={handleUpdateTechnician}
                 onDeleteTechnician={handleDeleteTechnician}
@@ -1626,6 +1628,7 @@ export default function App() {
                     technicians={technicians}
                     clients={clients}
                     defaultTab="clients"
+                    currentRole={effectiveRole}
                     onAddTechnician={handleAddTechnician}
                     onUpdateTechnician={handleUpdateTechnician}
                     onDeleteTechnician={handleDeleteTechnician}
@@ -1640,6 +1643,7 @@ export default function App() {
                     technicians={technicians}
                     clients={clients}
                     defaultTab="technicians"
+                    currentRole={effectiveRole}
                     onAddTechnician={handleAddTechnician}
                     onUpdateTechnician={handleUpdateTechnician}
                     onDeleteTechnician={handleDeleteTechnician}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Technician, ClientAccount, InstalledEquipment } from '../../types';
+import { Technician, ClientAccount, InstalledEquipment, UserRole } from '../../types';
 import { formatCOP, formatDate } from '../../utils/formatters';
 import {
   Users,
@@ -31,12 +31,15 @@ import {
   Camera,
   RefreshCw,
   Sparkles,
+  Shield,
+  Briefcase,
 } from 'lucide-react';
 
 interface TalentAndClientsProps {
   technicians: Technician[];
   clients: ClientAccount[];
   defaultTab?: 'technicians' | 'clients';
+  currentRole?: UserRole;
   onAddTechnician: (tech: Technician) => void;
   onUpdateTechnician: (tech: Technician) => void;
   onDeleteTechnician: (techId: string) => void;
@@ -68,6 +71,7 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
   technicians,
   clients,
   defaultTab = 'technicians',
+  currentRole = 'admin',
   onAddTechnician,
   onUpdateTechnician,
   onDeleteTechnician,
@@ -85,6 +89,14 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientAccount | null>(clients[0] || null);
+
+  // Password / sensitive admin data visibility states
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+  const [showClientPassword, setShowClientPassword] = useState(false);
+
+  const togglePasswordVisibility = (id: string) => {
+    setRevealedPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Modals state
   const [isTechModalOpen, setIsTechModalOpen] = useState(false);
@@ -490,61 +502,6 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
         </div>
       </div>
 
-      {/* 2 Perfiles Administradores Predeterminados Autorizados */}
-      <div className="bg-gradient-to-r from-sky-950/80 via-slate-900 to-indigo-950/80 border border-sky-500/40 p-5 rounded-2xl shadow-md text-white space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-sky-400" />
-            <h3 className="text-sm font-bold text-white">
-              Perfiles de Administración Predeterminados Autorizados
-            </h3>
-          </div>
-          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold uppercase w-fit">
-            Acceso Total de Modificación (2)
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Admin 1: Tatiana Enciso */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-sky-500/30 flex items-center gap-3.5">
-            <img
-              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80"
-              alt="Tatiana Enciso"
-              className="w-12 h-12 rounded-xl object-cover border-2 border-sky-400 shrink-0"
-            />
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="flex items-center gap-2">
-                <h4 className="font-black text-sm text-white truncate">Tatiana Enciso</h4>
-                <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-400/30 px-1.5 py-0.5 rounded font-bold">
-                  Admin Principal
-                </span>
-              </div>
-              <p className="text-xs text-sky-400 font-semibold truncate">Gerente General & Administradora del Sistema</p>
-              <p className="text-[11px] text-slate-400 truncate">tatianaenciso2123@gmail.com • Cel: 300 447 8151</p>
-            </div>
-          </div>
-
-          {/* Admin 2: Alejandra Cruz */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-sky-500/30 flex items-center gap-3.5">
-            <img
-              src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80"
-              alt="Alejandra Cruz"
-              className="w-12 h-12 rounded-xl object-cover border-2 border-sky-400 shrink-0"
-            />
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="flex items-center gap-2">
-                <h4 className="font-black text-sm text-white truncate">Alejandra Cruz</h4>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1.5 py-0.5 rounded font-bold">
-                  Admin Técnica
-                </span>
-              </div>
-              <p className="text-xs text-sky-400 font-semibold truncate">Directora de Operaciones & Administradora Técnica</p>
-              <p className="text-[11px] text-slate-400 truncate">alejandra.cruz@alestecninstaler.com • Cel: 315 789 4432</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Search and Filters Bar */}
       <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="relative flex-1">
@@ -607,23 +564,25 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
                     </div>
                   </div>
 
-                  {/* Actions (Edit / Delete) */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEditTech(tech)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
-                      title="Editar empleado y credenciales"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setItemToDelete({ type: 'tech', id: tech.id, name: tech.fullName })}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                      title="Eliminar empleado"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {/* Actions (Edit / Delete) - Only for Admin */}
+                  {currentRole === 'admin' && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEditTech(tech)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-slate-800 transition-colors"
+                        title="Editar empleado y credenciales"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setItemToDelete({ type: 'tech', id: tech.id, name: tech.fullName })}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                        title="Eliminar empleado"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Contact & Professional Info */}
@@ -654,37 +613,73 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
                   </div>
                 </div>
 
-                {/* Platform Access Credentials Card */}
-                <div className="p-3 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-1 text-xs">
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                    <span className="flex items-center gap-1">
-                      <KeyRound className="w-3 h-3 text-emerald-400" />
-                      Acceso Asignado:
-                    </span>
-                    <span className="text-emerald-400 font-bold">Rol: Empleado</span>
+                {/* Platform Access Credentials Card - ONLY VISIBLE TO ADMINISTRATORS */}
+                {currentRole === 'admin' ? (
+                  <div className="p-3 rounded-xl bg-slate-900 text-white border border-sky-500/30 space-y-1.5 text-xs shadow-inner">
+                    <div className="flex items-center justify-between text-[10px] pb-1 border-b border-slate-800">
+                      <span className="flex items-center gap-1 font-bold uppercase tracking-wider text-sky-400">
+                        <ShieldCheck className="w-3 h-3 text-sky-400" />
+                        Acceso Asignado (Solo Admin)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordVisibility(tech.id)}
+                        className="text-[10px] text-slate-400 hover:text-sky-300 flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors"
+                        title={revealedPasswords[tech.id] ? 'Ocultar contraseña' : 'Ver contraseña'}
+                      >
+                        {revealedPasswords[tech.id] ? (
+                          <>
+                            <EyeOff className="w-3 h-3 text-amber-400" />
+                            <span>Ocultar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3 h-3 text-sky-400" />
+                            <span>Revelar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Usuario:</span>
+                      <span className="font-mono font-bold text-sky-300">{tech.username || tech.email}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Contraseña:</span>
+                      <span className="font-mono text-slate-200">
+                        {revealedPasswords[tech.id] ? tech.password || '••••••••' : '••••••••'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Usuario:</span>
-                    <span className="font-mono font-bold text-sky-300">{tech.username || tech.email}</span>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Personal Técnico Operativo Certificado y Habilitado</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Contraseña:</span>
-                    <span className="font-mono text-slate-200">{tech.password || '••••••••'}</span>
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Footer / Salary Summary */}
+              {/* Footer / Salary Summary or Availability */}
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-[10px] text-slate-400 block">Salario + Bonos:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    {formatCOP(tech.baseSalaryCOP + tech.overtimeBonusCOP)} / mes
-                  </span>
-                </div>
+                {currentRole === 'admin' ? (
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Salario + Bonos:</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {formatCOP(tech.baseSalaryCOP + tech.overtimeBonusCOP)} / mes
+                    </span>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Estado Operativo:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      Disponible
+                    </span>
+                  </div>
+                )}
                 <a
                   href={`tel:${tech.phone}`}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold transition-colors flex items-center gap-1"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold transition-colors flex items-center gap-1"
                 >
                   <Phone className="w-3 h-3 text-emerald-500" />
                   Llamar
@@ -856,28 +851,37 @@ export const TalentAndClients: React.FC<TalentAndClientsProps> = ({
                   </div>
                 </div>
 
-                {/* Assigned Login Credentials */}
-                <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider">
-                    <span className="flex items-center gap-1.5">
-                      <KeyRound className="w-4 h-4 text-amber-400" />
-                      Credenciales de Ingreso a la Plataforma (Portal Clientes)
-                    </span>
-                    <span className="text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50">
-                      Rol: Cliente
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                    <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                      <span className="text-slate-400 block text-[10px]">Usuario / Correo:</span>
-                      <strong className="text-sky-300 font-mono">{selectedClient.username || selectedClient.email}</strong>
+                {/* Assigned Login Credentials - ONLY VISIBLE TO ADMINISTRATORS */}
+                {currentRole === 'admin' && (
+                  <div className="p-4 rounded-xl bg-slate-900 text-white border border-sky-500/30 space-y-2 shadow-inner">
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5 text-sky-400">
+                        <ShieldCheck className="w-4 h-4 text-sky-400" />
+                        Credenciales de Acceso al Portal (Solo Administrador)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowClientPassword(!showClientPassword)}
+                        className="text-[10px] text-slate-300 hover:text-white flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+                      >
+                        {showClientPassword ? <EyeOff className="w-3 h-3 text-amber-400" /> : <Eye className="w-3 h-3 text-sky-400" />}
+                        <span>{showClientPassword ? 'Ocultar' : 'Revelar'}</span>
+                      </button>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
-                      <span className="text-slate-400 block text-[10px]">Contraseña Asignada:</span>
-                      <strong className="text-slate-200 font-mono">{selectedClient.password || 'cliente123'}</strong>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                      <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                        <span className="text-slate-400 block text-[10px]">Usuario / Correo:</span>
+                        <strong className="text-sky-300 font-mono">{selectedClient.username || selectedClient.email}</strong>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+                        <span className="text-slate-400 block text-[10px]">Contraseña Asignada:</span>
+                        <strong className="text-slate-200 font-mono">
+                          {showClientPassword ? selectedClient.password || 'cliente123' : '••••••••'}
+                        </strong>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Installed Equipments Sheet */}
                 <div>
