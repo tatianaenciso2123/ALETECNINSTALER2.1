@@ -39,6 +39,24 @@ interface InvoicingModuleProps {
   onDeleteInvoice?: (invoiceId: string) => void;
 }
 
+// Overdue helper functions
+const isInvoiceOverdue = (inv: Invoice): boolean => {
+  if (inv.paymentStatus === 'PAGADO' || inv.paymentStatus === 'ANULADA') return false;
+  if (!inv.dueDate) return false;
+  const now = new Date();
+  const due = new Date(inv.dueDate);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return due < today;
+};
+
+const getDaysOverdue = (dueDateStr: string): number => {
+  const now = new Date();
+  const due = new Date(dueDateStr);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffTime = today.getTime() - due.getTime();
+  return Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+};
+
 export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
   invoices,
   onUpdateInvoiceStatus,
@@ -48,7 +66,7 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
 }) => {
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'WEEK' | 'MONTH'>('ALL');
   const [selectedCustomDate, setSelectedCustomDate] = useState<string>('');
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'ALL' | 'PENDIENTE' | 'PAGADO' | 'EN_VERIFICACION'>('ALL');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'ALL' | 'PENDIENTE' | 'PAGADO' | 'EN_VERIFICACION' | 'VENCIDO'>('ALL');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -61,6 +79,10 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
 
   const todayStr = '2026-08-14';
   const yesterdayStr = '2026-08-13';
+
+  // Global overdue stats
+  const allOverdueInvoices = invoices.filter(isInvoiceOverdue);
+  const allOverdueTotalCOP = allOverdueInvoices.reduce((acc, curr) => acc + curr.totalCOP, 0);
 
   // Filter invoices according to selected daily report filters
   const filteredInvoices = invoices.filter((inv) => {
@@ -76,7 +98,11 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
     }
 
     // Payment Status filter
-    if (paymentStatusFilter !== 'ALL' && inv.paymentStatus !== paymentStatusFilter) return false;
+    if (paymentStatusFilter === 'VENCIDO') {
+      if (!isInvoiceOverdue(inv)) return false;
+    } else if (paymentStatusFilter !== 'ALL' && inv.paymentStatus !== paymentStatusFilter) {
+      return false;
+    }
 
     // Payment Method filter
     if (paymentMethodFilter !== 'ALL' && inv.paymentMethod !== paymentMethodFilter) return false;
@@ -218,6 +244,43 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
         </p>
       </div>
 
+      {/* 🚨 OVERDUE PAYMENT ALARM BANNER */}
+      {allOverdueInvoices.length > 0 && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-rose-500/15 via-rose-500/10 to-transparent dark:from-rose-950/60 dark:via-rose-950/30 rounded-3xl border-2 border-rose-500/50 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-rose-600 text-white shadow-lg shadow-rose-600/40 shrink-0 animate-bounce">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black text-rose-800 dark:text-rose-200">
+                  ¡Alerta de Cobro: {allOverdueInvoices.length} {allOverdueInvoices.length === 1 ? 'Factura Vencida' : 'Facturas Vencidas'} en Cartera!
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-mono font-black animate-pulse">
+                  Mora Activa Expirada
+                </span>
+              </div>
+              <p className="text-xs text-rose-700 dark:text-rose-300 mt-1 font-medium">
+                Total acumulado en mora vencida: <strong className="font-mono font-black text-rose-900 dark:text-rose-100">{formatCOP(allOverdueTotalCOP)}</strong>. La fecha límite de pago expiró para estos servicios. Realice la gestión de cobro prioritaria.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setPaymentStatusFilter('VENCIDO');
+                setSearchQuery('');
+              }}
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-md shadow-rose-600/30 flex items-center gap-2 transition-transform active:scale-95"
+            >
+              <span>Ver {allOverdueInvoices.length} {allOverdueInvoices.length === 1 ? 'Factura Vencida' : 'Facturas Vencidas'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Daily Metrics Summary Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -255,20 +318,34 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
             {formatCOP(dailyTotalPending)}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {filteredInvoices.filter((i) => i.paymentStatus === 'PENDIENTE').length} facturas en espera de pago
+            {filteredInvoices.filter((i) => i.paymentStatus === 'PENDIENTE').length} facturas en cartera
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        {/* Overdue Alert KPI Card */}
+        <div
+          onClick={() => setPaymentStatusFilter(paymentStatusFilter === 'VENCIDO' ? 'ALL' : 'VENCIDO')}
+          className={`p-5 rounded-2xl border shadow-sm cursor-pointer transition-all ${
+            allOverdueInvoices.length > 0
+              ? 'bg-rose-50/60 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 hover:border-rose-400 ring-1 ring-rose-400/30'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">
-            <span>IVA 19% Generado DIAN</span>
-            <ShieldCheck className="w-5 h-5 text-purple-500" />
+            <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+              <AlertTriangle className="w-4 h-4 text-rose-500" /> Cartera Vencida (Mora)
+            </span>
+            {allOverdueInvoices.length > 0 && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white animate-pulse">
+                {allOverdueInvoices.length} Vencidas
+              </span>
+            )}
           </div>
-          <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
-            {formatCOP(dailyTotalIva)}
+          <div className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">
+            {formatCOP(allOverdueTotalCOP)}
           </div>
-          <div className="text-xs text-slate-400 mt-1">
-            Retención en la fuente estimada incluida
+          <div className="text-xs text-rose-600/80 dark:text-rose-400 mt-1">
+            Clic para filtrar facturas con fecha límite vencida
           </div>
         </div>
       </div>
@@ -309,9 +386,10 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
         <select
           value={paymentStatusFilter}
           onChange={(e) => setPaymentStatusFilter(e.target.value as any)}
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-medium w-full md:w-auto"
+          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-bold w-full md:w-auto"
         >
           <option value="ALL">Todos los Estados de Pago</option>
+          <option value="VENCIDO">🚨 Solo Facturas Vencidas en Mora ({allOverdueInvoices.length})</option>
           <option value="PENDIENTE">Solo Pendientes de Pago</option>
           <option value="PAGADO">Solo Pagadas</option>
           <option value="EN_VERIFICACION">En Verificación</option>
@@ -355,13 +433,25 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
               {filteredInvoices.map((inv) => {
                 const isPaid = inv.paymentStatus === 'PAGADO';
                 const isApproved = inv.approvalStatus === 'APROBADO_ENVIADO';
+                const isOverdue = isInvoiceOverdue(inv);
+                const daysOverdue = isOverdue ? getDaysOverdue(inv.dueDate) : 0;
 
                 return (
-                  <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr
+                    key={inv.id}
+                    className={`transition-colors ${
+                      isOverdue
+                        ? 'bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-50/80 dark:hover:bg-rose-950/40'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    }`}
+                  >
                     {/* Date & Invoice Number */}
                     <td className="p-3.5">
-                      <div className="font-mono font-black text-sky-600 dark:text-sky-400 text-xs">
-                        {inv.invoiceNumber}
+                      <div className="font-mono font-black text-sky-600 dark:text-sky-400 text-xs flex items-center gap-1.5">
+                        <span>{inv.invoiceNumber}</span>
+                        {isOverdue && (
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" title="Factura con plazo expirado" />
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">
                         {inv.issueDate} {inv.orderNumber && `• ${inv.orderNumber}`}
@@ -421,12 +511,17 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
                           </span>
                         </div>
 
-                        {/* Process Step 2: Payment Status Badge */}
+                        {/* Process Step 2: Payment Status Badge with Overdue Alarm */}
                         <div>
                           {isPaid ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                               <CheckCircle2 className="w-3 h-3" />
                               Pago Verificado & Conciliado
+                            </span>
+                          ) : isOverdue ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-400 dark:border-rose-800 shadow-sm animate-pulse">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                              <span>¡PAGO VENCIDO! ({daysOverdue} {daysOverdue === 1 ? 'día' : 'días'} de mora - Venció {inv.dueDate})</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
@@ -510,6 +605,19 @@ export const InvoicingModule: React.FC<InvoicingModuleProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Overdue Warning Alert if past due date */}
+            {isInvoiceOverdue(selectedInvoiceForModal) && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-2xl flex items-center justify-between gap-3 text-rose-700 dark:text-rose-300">
+                <div className="flex items-center gap-2 font-bold text-xs">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 animate-bounce" />
+                  <span>¡FECHA LÍMITE DE PAGO VENCIDA! Expiró el {selectedInvoiceForModal.dueDate} ({getDaysOverdue(selectedInvoiceForModal.dueDate)} días en mora).</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-rose-600 text-white font-mono text-[10px] font-bold shrink-0 shadow-sm">
+                  Mora Expirada
+                </span>
+              </div>
+            )}
 
             {/* Buyer and Seller Data */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">

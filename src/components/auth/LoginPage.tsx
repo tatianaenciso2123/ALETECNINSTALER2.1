@@ -40,6 +40,16 @@ export interface AuthUser {
   nitOrDocument?: string;
 }
 
+export interface RememberedProfile {
+  username: string;
+  fullName: string;
+  role: UserRole;
+  roleTitle: string;
+  avatarUrl?: string;
+  password?: string;
+  rememberedAt: string;
+}
+
 interface LoginPageProps {
   onLoginSuccess: (user: AuthUser) => void;
   isDarkMode: boolean;
@@ -69,6 +79,67 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  // Remembered profiles state loaded exclusively from this device's local storage
+  const [rememberedProfiles, setRememberedProfiles] = useState<RememberedProfile[]>(() => {
+    try {
+      const stored = localStorage.getItem('ale_remembered_profiles');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return []; // Empty by default until a user initiates login with "Recordar sesión" on this device
+  });
+
+  const saveRememberedProfile = (newProfile: RememberedProfile) => {
+    setRememberedProfiles((prev) => {
+      const filtered = prev.filter(
+        (p) => !(p.username.toLowerCase() === newProfile.username.toLowerCase() && p.role === newProfile.role)
+      );
+      const updated = [newProfile, ...filtered];
+      try {
+        localStorage.setItem('ale_remembered_profiles', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleRemoveRememberedProfile = (userToForget: string, roleToForget: UserRole) => {
+    setRememberedProfiles((prev) => {
+      const updated = prev.filter(
+        (p) => !(p.username.toLowerCase() === userToForget.toLowerCase() && p.role === roleToForget)
+      );
+      try {
+        localStorage.setItem('ale_remembered_profiles', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    if (username.toLowerCase() === userToForget.toLowerCase()) {
+      setPassword('');
+    }
+  };
+
+  // Filter remembered profiles for the currently active role tab
+  const currentRoleRememberedProfiles = rememberedProfiles.filter((p) => p.role === role);
+
+  const completeLogin = (authenticatedUser: AuthUser, passToRemember: string) => {
+    if (rememberMe) {
+      saveRememberedProfile({
+        username: authenticatedUser.username,
+        fullName: authenticatedUser.fullName,
+        role: authenticatedUser.role,
+        roleTitle: authenticatedUser.roleTitle,
+        avatarUrl: authenticatedUser.avatarUrl,
+        password: passToRemember,
+        rememberedAt: new Date().toISOString().split('T')[0],
+      });
+    } else {
+      handleRemoveRememberedProfile(authenticatedUser.username, authenticatedUser.role);
+    }
+    onLoginSuccess(authenticatedUser);
+    setIsLoading(false);
+  };
 
   // Password Recovery Modal State
   const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
@@ -254,8 +325,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             nitOrDocument: 'NIT 901.482.391-8',
             avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
           };
-          onLoginSuccess(authenticatedUser);
-          setIsLoading(false);
+          completeLogin(authenticatedUser, cleanPass);
           return;
         }
 
@@ -302,8 +372,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             nitOrDocument: 'CC 1.030.548.219',
             avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&auto=format&fit=crop&q=80',
           };
-          onLoginSuccess(authenticatedUser);
-          setIsLoading(false);
+          completeLogin(authenticatedUser, cleanPass);
           return;
         }
       }
@@ -358,8 +427,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           phone: foundTech.phone,
           nitOrDocument: `${foundTech.documentType || 'CC'} ${foundTech.documentNumber || foundTech.documentId}`,
         };
-        onLoginSuccess(authenticatedUser);
-        setIsLoading(false);
+        completeLogin(authenticatedUser, cleanPass);
         return;
       }
 
@@ -413,8 +481,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           phone: foundClient.phone,
           nitOrDocument: `${foundClient.documentType || 'NIT'} ${foundClient.documentNumber || foundClient.nit}`,
         };
-        onLoginSuccess(authenticatedUser);
-        setIsLoading(false);
+        completeLogin(authenticatedUser, cleanPass);
         return;
       }
 
@@ -771,64 +838,63 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   </div>
                 </div>
 
-                {/* Quick Select for Administrators */}
-                {role === 'admin' && (
+                {/* 2. REMEMBERED SESSIONS / QUICK SELECT SECTION (Generado exclusivamente a partir de sesiones recordadas en este dispositivo) */}
+                {role === 'admin' && currentRoleRememberedProfiles.length > 0 && (
                   <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2 animate-fade-in">
                     <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
                       <span className="flex items-center gap-1.5 text-sky-400">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        2 Administradoras Autorizadas con Permisos Totales:
+                        <Fingerprint className="w-3.5 h-3.5" />
+                        <span>Sesiones Guardadas en este Dispositivo ({currentRoleRememberedProfiles.length}):</span>
                       </span>
-                      <span className="text-[10px] text-slate-500">Selección Rápida</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Acceso Rápido</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUsername('tatianaenciso2123@gmail.com');
-                          setPassword('admin123');
-                          setErrorMessage(null);
-                        }}
-                        className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                          username.toLowerCase().includes('tatiana') || username === 'admin'
-                            ? 'bg-sky-500/20 border-sky-500 text-white font-bold ring-1 ring-sky-500/40'
-                            : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                        }`}
-                      >
-                        <img
-                          src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80"
-                          alt="Tatiana"
-                          className="w-8 h-8 rounded-lg object-cover border border-sky-400 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs truncate font-bold">Tatiana Enciso</div>
-                          <div className="text-[10px] text-sky-400 truncate">Gerente General</div>
-                        </div>
-                      </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUsername('alejandra.cruz@alestecninstaler.com');
-                          setPassword('admin123');
-                          setErrorMessage(null);
-                        }}
-                        className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
-                          username.toLowerCase().includes('alejandra')
-                            ? 'bg-sky-500/20 border-sky-500 text-white font-bold ring-1 ring-sky-500/40'
-                            : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                        }`}
-                      >
-                        <img
-                          src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&auto=format&fit=crop&q=80"
-                          alt="Alejandra"
-                          className="w-8 h-8 rounded-lg object-cover border border-sky-400 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs truncate font-bold">Alejandra Cruz</div>
-                          <div className="text-[10px] text-sky-400 truncate">Dir. Operaciones</div>
-                        </div>
-                      </button>
+                    <div className={`grid gap-2 ${currentRoleRememberedProfiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      {currentRoleRememberedProfiles.map((prof) => {
+                        const isSelected = username.toLowerCase() === prof.username.toLowerCase();
+                        return (
+                          <div key={prof.username + prof.role} className="relative group">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUsername(prof.username);
+                                if (prof.password) setPassword(prof.password);
+                                setRememberMe(true);
+                                setErrorMessage(null);
+                              }}
+                              className={`w-full p-2 rounded-xl border text-left flex items-center gap-2 transition-all ${
+                                isSelected
+                                  ? 'bg-sky-500/20 border-sky-500 text-white font-bold ring-1 ring-sky-500/40'
+                                  : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                              }`}
+                            >
+                              <img
+                                src={
+                                  prof.avatarUrl ||
+                                  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&auto=format&fit=crop&q=80'
+                                }
+                                alt={prof.fullName}
+                                className="w-8 h-8 rounded-lg object-cover border border-sky-400/50 shrink-0"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs truncate font-bold">{prof.fullName}</div>
+                                <div className="text-[10px] text-sky-400 truncate">{prof.roleTitle}</div>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveRememberedProfile(prof.username, prof.role);
+                              }}
+                              title="Olvidar sesión guardada"
+                              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 rounded-md bg-slate-900/90 text-slate-400 hover:text-rose-400 transition-opacity text-[10px]"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

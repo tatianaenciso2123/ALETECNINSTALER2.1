@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SparePart } from '../../types';
+import { SparePart, UserRole } from '../../types';
 import { formatCOP } from '../../utils/formatters';
 import {
   Package,
@@ -20,11 +20,13 @@ import {
   Tag,
   Boxes,
   Eye,
-  RefreshCw
+  RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface WarehouseInventoryProps {
   spareParts: SparePart[];
+  currentRole?: UserRole;
   onAddSparePart: (newPart: Omit<SparePart, 'id'>) => void;
   onUpdateSparePart: (id: string, updated: Partial<SparePart>) => void;
   onDeleteSparePart: (id: string) => void;
@@ -33,6 +35,7 @@ interface WarehouseInventoryProps {
 
 export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
   spareParts,
+  currentRole = 'admin',
   onAddSparePart,
   onUpdateSparePart,
   onDeleteSparePart,
@@ -46,6 +49,7 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
   // Modal State for New / Edit Part (6.1)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  const [partToDelete, setPartToDelete] = useState<SparePart | null>(null);
 
   // Form State (6.1)
   const [formName, setFormName] = useState('');
@@ -251,22 +255,26 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
               Bodega de Repuestos & Gestión de Inventario
             </h2>
             <p className="text-xs text-slate-500">
-              Control de existencias físicas, valorización en tiempo real y descuentos automáticos por actas de servicio
+              {currentRole === 'admin'
+                ? 'Control de existencias físicas, valorización en tiempo real y descuentos automáticos por actas de servicio'
+                : 'Control de existencias físicas, catálogo de repuestos técnicos y consumos en órdenes de servicio'}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-2xl shadow-md shadow-purple-600/30 flex items-center gap-2 active:scale-95 transition-transform self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Ingresar Nuevo Repuesto</span>
-        </button>
+        {currentRole === 'admin' && (
+          <button
+            onClick={handleOpenAdd}
+            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-2xl shadow-md shadow-purple-600/30 flex items-center gap-2 active:scale-95 transition-transform self-start md:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Ingresar Nuevo Repuesto</span>
+          </button>
+        )}
       </div>
 
-      {/* KPI Cards (6.2, 6.3, 6.4) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* KPI Cards (Valorización de Bodega exclusiva para Administradores) */}
+      <div className={`grid grid-cols-1 ${currentRole === 'admin' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4`}>
         {/* KPI 1: Total Referencias */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
@@ -304,21 +312,23 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
           <p className="text-[11px] text-slate-400">Clic para filtrar repuestos por debajo del stock mínimo</p>
         </div>
 
-        {/* KPI 3: Valorización de Bodega */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-              Valorización de Bodega
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-              <TrendingUp className="w-4 h-4" />
+        {/* KPI 3: Valorización de Bodega (Exclusivo Administradores) */}
+        {currentRole === 'admin' && (
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 animate-fade-in">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                Valorización de Bodega
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
+                <TrendingUp className="w-4 h-4" />
+              </div>
             </div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+              {formatCOP(totalValuationCOP)}
+            </div>
+            <p className="text-[11px] text-slate-400">Capital monetario total disponible en inventario (Exclusivo Administradores)</p>
           </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-            {formatCOP(totalValuationCOP)}
-          </div>
-          <p className="text-[11px] text-slate-400">Capital monetario total disponible en inventario</p>
-        </div>
+        )}
       </div>
 
       {/* Search and Filters Toolbar (6.5) */}
@@ -583,17 +593,15 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`¿Desea eliminar el repuesto ${part.name}?`)) {
-                                  onDeleteSparePart(part.id);
-                                }
-                              }}
-                              className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
-                              title="Eliminar repuesto"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {currentRole === 'admin' && (
+                              <button
+                                onClick={() => setPartToDelete(part)}
+                                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                                title="Eliminar repuesto (Exclusivo Administrador)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -677,9 +685,19 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
                     <button
                       onClick={() => handleOpenEdit(part)}
                       className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                      title="Editar repuesto"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
+                    {currentRole === 'admin' && (
+                      <button
+                        onClick={() => setPartToDelete(part)}
+                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                        title="Eliminar repuesto (Exclusivo Administrador)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setAdjustModalPart(part);
@@ -910,21 +928,41 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md shadow-purple-600/30 flex items-center gap-2"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Guardar en Bodega</span>
-                </button>
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                {editingPartId && currentRole === 'admin' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = spareParts.find((p) => p.id === editingPartId);
+                      if (target) {
+                        setPartToDelete(target);
+                      }
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-500" />
+                    <span>Eliminar de Bodega</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md shadow-purple-600/30 flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Guardar en Bodega</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1023,6 +1061,96 @@ export const WarehouseInventory: React.FC<WarehouseInventoryProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL CONFIRMAR ELIMINACIÓN DE REPUESTO ================= */}
+      {partToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-rose-500/30 p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
+                <div className="p-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    ¿Eliminar Repuesto de Bodega?
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-normal">
+                    Confirmación de retiro de inventario
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPartToDelete(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+              <div className="flex items-center gap-3">
+                <img
+                  src={partToDelete.imageUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=100&auto=format&fit=crop&q=80'}
+                  alt={partToDelete.name}
+                  className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                    {partToDelete.code}
+                  </div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                    {partToDelete.name}
+                  </h4>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {partToDelete.brand} • {partToDelete.category}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-700/80 text-[11px]">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Existencias Físicas:</span>
+                  <strong className="text-slate-800 dark:text-slate-200">{partToDelete.stock} {partToDelete.unit}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Ubicación en Bodega:</span>
+                  <strong className="text-slate-800 dark:text-slate-200">{partToDelete.warehouseLocation}</strong>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+              ¿Confirmas que deseas retirar este repuesto de la bodega? Si confirmas, el repuesto se eliminará totalmente del catálogo. Si seleccionas cancelar, la operación se anulará sin cambios.
+            </p>
+
+            {/* Buttons: Cancelar & Confirmar */}
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPartToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteSparePart(partToDelete.id);
+                  setPartToDelete(null);
+                  if (isModalOpen && editingPartId === partToDelete.id) {
+                    setIsModalOpen(false);
+                  }
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition-transform active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirmar Eliminación</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -765,7 +765,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         {activeTab === 'invoicing'
                           ? 'Facturas'
                           : activeTab === 'finance'
-                          ? 'Caja Menor'
+                          ? 'Recaudo en Efectivo'
                           : 'Proveedores'}
                       </span>
                     )}
@@ -816,7 +816,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </div>
                         </button>
 
-                        {/* 2. Caja Menor & Finanzas */}
+                        {/* 2. Recaudo en Efectivo & Caja Menor */}
                         <button
                           onClick={() => {
                             onTabChange('finance');
@@ -828,18 +828,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                               : 'hover:bg-slate-800/90 text-slate-300 hover:text-white'
                           }`}
                         >
-                          <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-700/60 text-cyan-400 shrink-0 mt-0.5">
-                            <TrendingUp className="w-4 h-4" />
+                          <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 shrink-0 mt-0.5">
+                            <DollarSign className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
-                              <div className="text-xs font-bold text-white">Caja Menor & Finanzas</div>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-300 font-semibold border border-cyan-600/40">
-                                Caja
+                              <div className="text-xs font-bold text-white">Recaudo en Efectivo & Caja Menor</div>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300 font-semibold border border-emerald-600/40">
+                                Recaudo / Caja
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                              Arqueos, anticipos, egresos y comprobantes
+                              Cobro facturas, abonos, ingresos diarios/mes y arqueo
                             </div>
                           </div>
                         </button>

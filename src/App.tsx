@@ -1194,9 +1194,30 @@ export default function App() {
               paymentStatus: status,
               paymentMethod: method || 'PSE',
               paidAt: new Date().toISOString(),
+              paidDate: status === 'PAGADO' ? new Date().toISOString().split('T')[0] : inv.paidDate,
             }
           : inv
       )
+    );
+  };
+
+  const handleUpdateInvoiceAdvance = (invoiceId: string, advanceAmountCOP: number, isFullyPaid: boolean) => {
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.id === invoiceId) {
+          const currentAdvance = inv.advancePaymentCOP || 0;
+          const newAdvance = currentAdvance + advanceAmountCOP;
+          return {
+            ...inv,
+            advancePaymentCOP: newAdvance,
+            paymentStatus: isFullyPaid ? 'PAGADO' : 'PENDIENTE',
+            paymentMethod: 'EFECTIVO',
+            paidDate: isFullyPaid ? new Date().toISOString().split('T')[0] : inv.paidDate,
+            paidAt: isFullyPaid ? new Date().toISOString() : inv.paidAt,
+          };
+        }
+        return inv;
+      })
     );
   };
 
@@ -1418,6 +1439,7 @@ export default function App() {
             {activeTab === 'warehouse' && (
               <WarehouseInventory
                 spareParts={spareParts}
+                currentRole={effectiveRole}
                 onAddSparePart={handleAddSparePart}
                 onUpdateSparePart={handleUpdateSparePartById}
                 onDeleteSparePart={handleDeleteSparePart}
@@ -1475,6 +1497,7 @@ export default function App() {
                 clients={clients}
                 onAddCashTransaction={handleAddCashTransaction}
                 onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+                onUpdateInvoiceAdvance={handleUpdateInvoiceAdvance}
               />
             )}
 
@@ -1534,6 +1557,7 @@ export default function App() {
                 technicians={technicians}
                 orders={orders}
                 onAssignTechnician={(orderId, techId) => handleAssignTechnician(orderId, techId)}
+                onSelectOrder={(order) => setSelectedOrderForReport(order)}
               />
             )}
 
@@ -1607,6 +1631,7 @@ export default function App() {
                 {activeTab === 'warehouse' && (
                   <WarehouseInventory
                     spareParts={spareParts}
+                    currentRole={effectiveRole}
                     onAddSparePart={handleAddSparePart}
                     onUpdateSparePart={handleUpdateSparePartById}
                     onDeleteSparePart={handleDeleteSparePart}

@@ -279,6 +279,10 @@ export interface TechnicianGeolocationRecord {
   verifiedOnSite: boolean;
   addressApprox?: string;
   notes?: string;
+  orderId?: string;
+  orderNumber?: string;
+  speedKmh?: number;
+  batteryLevel?: number;
 }
 
 export interface WorkOrder {
@@ -388,6 +392,8 @@ export interface Technician {
   completedOrdersCount: number;
   ratingScore: number;
   certifications: string[];
+  locationHistory?: TechnicianGeolocationRecord[];
+  lastKnownLocation?: TechnicianGeolocationRecord;
 }
 
 export interface InstalledEquipment {

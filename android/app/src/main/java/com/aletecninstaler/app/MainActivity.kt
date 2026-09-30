@@ -34,8 +34,8 @@ class MainActivity : AppCompatActivity() {
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
     // Production Endpoint & Local Asset Fallback
-    private val productionUrl = "https://ais-dev-v4fgzsnlxg4wcz4qrjwbby-818152076405.us-east1.run.app"
-    private val sharedUrl = "https://ais-pre-v4fgzsnlxg4wcz4qrjwbby-818152076405.us-east1.run.app"
+    private val productionUrl = "https://ais-dev-oujf4o5mktbt3weawwn7fg-818152076405.us-east1.run.app"
+    private val sharedUrl = "https://ais-pre-oujf4o5mktbt3weawwn7fg-818152076405.us-east1.run.app"
     private val localAssetUrl = "file:///android_asset/index.html"
 
     private val fileChooserLauncher =

@@ -41,6 +41,7 @@ interface FinanceModuleProps {
   clients?: ClientAccount[];
   onAddCashTransaction: (transaction: CashTransaction) => void;
   onUpdateInvoiceStatus: (invoiceId: string, status: 'PAGADO' | 'PENDIENTE', method?: any) => void;
+  onUpdateInvoiceAdvance?: (invoiceId: string, advanceAmountCOP: number, isFullyPaid: boolean) => void;
 }
 
 export const FinanceModule: React.FC<FinanceModuleProps> = ({
@@ -50,16 +51,21 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   technicians = [],
   clients = [],
   onAddCashTransaction,
+  onUpdateInvoiceStatus,
+  onUpdateInvoiceAdvance,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'cash_book' | 'profitability'>('overview');
   const [showNewCashModal, setShowNewCashModal] = useState(false);
+  const [showInvoicePaymentModal, setShowInvoicePaymentModal] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState<CashTransaction | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Filter state for cash book
   const [cashTypeFilter, setCashTypeFilter] = useState<'ALL' | 'INGRESO' | 'EGRESO'>('ALL');
+  const [cashTimeFilter, setCashTimeFilter] = useState<'ALL' | 'TODAY' | 'MONTH'>('ALL');
   const [cashSearch, setCashSearch] = useState('');
 
-  // New Cash Transaction form state
+  // General New Cash Transaction form state
   const [txType, setTxType] = useState<CashTransactionType>('INGRESO');
   const [newCashAmount, setNewCashAmount] = useState('');
   const [newCashClient, setNewCashClient] = useState('');
@@ -69,32 +75,49 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const [newCashAuthorizedBy, setNewCashAuthorizedBy] = useState('Tatiana Enciso');
   const [newCashOrderNo, setNewCashOrderNo] = useState('');
 
-  // Find matching pending invoice for advance deduction preview
+  // Invoice Cash Payment / Abono form state
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
+  const [paymentMode, setPaymentMode] = useState<'FULL' | 'ABONO'>('FULL');
+  const [invoiceCashAmount, setInvoiceCashAmount] = useState<string>('');
+  const [invoiceCashTech, setInvoiceCashTech] = useState<string>('Alejandra Cruz');
+  const [invoiceCashAuthorizedBy, setInvoiceCashAuthorizedBy] = useState<string>('Tatiana Enciso');
+  const [invoiceCashConcept, setInvoiceCashConcept] = useState<string>('');
+  const [manualClientName, setManualClientName] = useState<string>('');
+  const [manualInvoiceNo, setManualInvoiceNo] = useState<string>('');
+
+  const todayStr = '2026-08-14';
+  const currentMonthStr = '2026-08';
+
+  // Selected Invoice Object for modal calculations
+  const selectedInvoice = useMemo(() => {
+    if (!selectedInvoiceId || selectedInvoiceId === 'MANUAL') return null;
+    return invoices.find((inv) => inv.id === selectedInvoiceId) || null;
+  }, [invoices, selectedInvoiceId]);
+
+  // Outstanding balance on selected invoice
+  const selectedInvoicePendingBalance = useMemo(() => {
+    if (!selectedInvoice) return 0;
+    const previousAdvances = selectedInvoice.advancePaymentCOP || 0;
+    return Math.max(0, selectedInvoice.totalCOP - previousAdvances);
+  }, [selectedInvoice]);
+
+  // Match pending invoice for quick anticipo deduction preview
   const matchedInvoice = useMemo(() => {
-    if (txType !== 'INGRESO' || newCashCategory !== 'ANTICIPO_CLIENTE' || !newCashClient.trim()) return null;
-    const target = newCashClient.toLowerCase().trim();
+    if (!newCashClient) return null;
+    const clientQuery = newCashClient.trim().toLowerCase();
     return (
       invoices.find(
         (inv) =>
           inv.paymentStatus === 'PENDIENTE' &&
-          (inv.clientName.toLowerCase().trim() === target ||
-            inv.clientName.toLowerCase().includes(target) ||
-            target.includes(inv.clientName.toLowerCase().trim()) ||
-            (newCashOrderNo && inv.orderNumber && inv.orderNumber.toLowerCase().includes(newCashOrderNo.toLowerCase())))
-      ) ||
-      invoices.find(
-        (inv) =>
-          inv.clientName.toLowerCase().trim() === target ||
-          inv.clientName.toLowerCase().includes(target) ||
-          target.includes(inv.clientName.toLowerCase().trim())
-      )
+          inv.clientName.toLowerCase().includes(clientQuery)
+      ) || null
     );
-  }, [invoices, txType, newCashCategory, newCashClient, newCashOrderNo]);
+  }, [invoices, newCashClient]);
 
   // Initial petty cash fund constant
   const INITIAL_CASH_FUND = 1500000;
 
-  // Incomes and Expenses sum
+  // Incomes and Expenses calculations
   const totalCashIncomes = cashTransactions
     .filter((c) => (c.type || 'INGRESO') === 'INGRESO')
     .reduce((acc, curr) => acc + curr.amountCOP, 0);
@@ -104,6 +127,45 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     .reduce((acc, curr) => acc + curr.amountCOP, 0);
 
   const currentPettyCashBalance = INITIAL_CASH_FUND + totalCashIncomes - totalCashExpenses;
+
+  // Daily Cash Incomes & Expenses (Hoy)
+  const dailyCashIncomes = cashTransactions
+    .filter((c) => (c.type || 'INGRESO') === 'INGRESO' && c.date.startsWith(todayStr))
+    .reduce((acc, curr) => acc + curr.amountCOP, 0);
+
+  const dailyCashExpenses = cashTransactions
+    .filter((c) => c.type === 'EGRESO' && c.date.startsWith(todayStr))
+    .reduce((acc, curr) => acc + curr.amountCOP, 0);
+
+  const dailyCashReceiptsCount = cashTransactions.filter(
+    (c) => (c.type || 'INGRESO') === 'INGRESO' && c.date.startsWith(todayStr)
+  ).length;
+
+  const dailyNetCash = dailyCashIncomes - dailyCashExpenses;
+
+  // Monthly Cash Incomes & Expenses (Mes Actual)
+  const monthlyCashIncomes = cashTransactions
+    .filter((c) => (c.type || 'INGRESO') === 'INGRESO' && c.date.startsWith(currentMonthStr))
+    .reduce((acc, curr) => acc + curr.amountCOP, 0);
+
+  const monthlyCashExpenses = cashTransactions
+    .filter((c) => c.type === 'EGRESO' && c.date.startsWith(currentMonthStr))
+    .reduce((acc, curr) => acc + curr.amountCOP, 0);
+
+  const monthlyCashReceiptsCount = cashTransactions.filter(
+    (c) => (c.type || 'INGRESO') === 'INGRESO' && c.date.startsWith(currentMonthStr)
+  ).length;
+
+  const monthlyNetCash = monthlyCashIncomes - monthlyCashExpenses;
+
+  // Total collected specifically for invoices & abonos in cash
+  const invoiceCashCollections = cashTransactions
+    .filter(
+      (c) =>
+        (c.type || 'INGRESO') === 'INGRESO' &&
+        (c.category === 'RECAUDO_SERVICIO' || c.category === 'ANTICIPO_CLIENTE')
+    )
+    .reduce((acc, curr) => acc + curr.amountCOP, 0);
 
   // Calculations for general invoices
   const totalBilled = invoices.reduce((acc, curr) => acc + curr.totalCOP, 0);
@@ -118,6 +180,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const estimatedGrossProfit = totalCollected - estimatedOperatingCosts;
   const grossMarginPercent = totalCollected > 0 ? ((estimatedGrossProfit / totalCollected) * 100).toFixed(1) : '0';
 
+  // Handle General Cash Receipt / Expense
   const handleCreateCashReceipt = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCashAmount) return;
@@ -125,7 +188,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     const recipientOrClient = txType === 'INGRESO' ? newCashClient : newCashTech;
     if (txType === 'INGRESO' && !newCashClient) return;
 
-    const prefix = txType === 'INGRESO' ? 'RC' : 'CE'; // RC: Recibo de Caja, CE: Comprobante de Egreso
+    const prefix = txType === 'INGRESO' ? 'RC' : 'CE';
     const receipt: CashTransaction = {
       id: `cash-${Date.now()}`,
       receiptNumber: `${prefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -150,14 +213,120 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     setNewCashClient('');
     setNewCashConcept('');
     setNewCashOrderNo('');
-    setNewCashTech(txType === 'EGRESO' ? 'Alejandra Cruz' : 'Alejandra Cruz');
-    setNewCashAuthorizedBy('Tatiana Enciso');
+    setToastMessage(`Movimiento de caja registrado exitosamente (${receipt.receiptNumber})`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Open Invoice Payment Modal with preselection
+  const handleOpenInvoicePaymentModal = (invoiceId?: string) => {
+    if (invoiceId) {
+      const inv = invoices.find((i) => i.id === invoiceId);
+      if (inv) {
+        setSelectedInvoiceId(inv.id);
+        const pending = Math.max(0, inv.totalCOP - (inv.advancePaymentCOP || 0));
+        setInvoiceCashAmount(pending > 0 ? String(pending) : String(inv.totalCOP));
+        setPaymentMode('FULL');
+        setInvoiceCashConcept(`Cobro en efectivo Factura ${inv.invoiceNumber} - ${inv.clientName}`);
+      }
+    } else {
+      const firstPending = invoices.find((i) => i.paymentStatus === 'PENDIENTE');
+      if (firstPending) {
+        setSelectedInvoiceId(firstPending.id);
+        const pending = Math.max(0, firstPending.totalCOP - (firstPending.advancePaymentCOP || 0));
+        setInvoiceCashAmount(pending > 0 ? String(pending) : String(firstPending.totalCOP));
+        setPaymentMode('FULL');
+        setInvoiceCashConcept(`Cobro en efectivo Factura ${firstPending.invoiceNumber} - ${firstPending.clientName}`);
+      } else {
+        setSelectedInvoiceId('MANUAL');
+        setInvoiceCashAmount('');
+        setPaymentMode('FULL');
+        setInvoiceCashConcept('');
+      }
+    }
+    setShowInvoicePaymentModal(true);
+  };
+
+  // Handle Invoice Payment / Abono Submission
+  const handleSubmitInvoicePayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(invoiceCashAmount);
+    if (!amount || amount <= 0) return;
+
+    let targetClientName = '';
+    let targetOrderOrInvNo = '';
+    let isFullyPaid = false;
+
+    if (selectedInvoice) {
+      targetClientName = selectedInvoice.clientName;
+      targetOrderOrInvNo = selectedInvoice.invoiceNumber;
+      const prevAdvance = selectedInvoice.advancePaymentCOP || 0;
+      const remainingBeforePayment = selectedInvoice.totalCOP - prevAdvance;
+
+      isFullyPaid = paymentMode === 'FULL' || amount >= remainingBeforePayment;
+
+      // Update invoice in accounting system
+      if (onUpdateInvoiceAdvance) {
+        onUpdateInvoiceAdvance(selectedInvoice.id, amount, isFullyPaid);
+      } else if (onUpdateInvoiceStatus) {
+        if (isFullyPaid) {
+          onUpdateInvoiceStatus(selectedInvoice.id, 'PAGADO', 'EFECTIVO');
+        }
+      }
+    } else {
+      targetClientName = manualClientName || 'Cliente Particular / Copropiedad';
+      targetOrderOrInvNo = manualInvoiceNo || 'FACTURA-MANUAL-EFECTIVO';
+      isFullyPaid = paymentMode === 'FULL';
+    }
+
+    const isAbono = paymentMode === 'ABONO' && !isFullyPaid;
+    const receiptNum = `RC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // Create official Cash Receipt
+    const receipt: CashTransaction = {
+      id: `cash-inv-${Date.now()}`,
+      receiptNumber: receiptNum,
+      date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      type: 'INGRESO',
+      category: isAbono ? 'ANTICIPO_CLIENTE' : 'RECAUDO_SERVICIO',
+      orderNumber: targetOrderOrInvNo,
+      clientName: targetClientName,
+      clientOrBeneficiary: targetClientName,
+      amountCOP: amount,
+      receivedByTechnician: invoiceCashTech,
+      receivedBy: invoiceCashTech,
+      authorizedByAdmin: invoiceCashAuthorizedBy,
+      verifiedByAdmin: invoiceCashAuthorizedBy,
+      concept:
+        invoiceCashConcept ||
+        (isAbono
+          ? `Abono parcial en efectivo a ${targetOrderOrInvNo} - ${targetClientName}`
+          : `Pago total en efectivo de Factura ${targetOrderOrInvNo} - ${targetClientName}`),
+      status: 'ARQUEADO_EN_CAJA',
+    };
+
+    onAddCashTransaction(receipt);
+    setShowInvoicePaymentModal(false);
+    setToastMessage(
+      isFullyPaid
+        ? `Factura ${targetOrderOrInvNo} pagada y conciliada 100% en efectivo (${receiptNum})`
+        : `Abono de ${formatCOP(amount)} registrado exitosamente a Factura ${targetOrderOrInvNo} (${receiptNum})`
+    );
+    setTimeout(() => setToastMessage(null), 4500);
+
+    // Open receipt modal for immediate printing / review
+    setViewingReceipt(receipt);
   };
 
   // Filtered cash transactions
   const filteredCashTransactions = cashTransactions.filter((tx) => {
     const type = tx.type || 'INGRESO';
     if (cashTypeFilter !== 'ALL' && type !== cashTypeFilter) return false;
+
+    if (cashTimeFilter === 'TODAY') {
+      if (!tx.date.startsWith(todayStr)) return false;
+    } else if (cashTimeFilter === 'MONTH') {
+      if (!tx.date.startsWith(currentMonthStr)) return false;
+    }
 
     if (cashSearch.trim()) {
       const q = cashSearch.toLowerCase();
@@ -173,121 +342,167 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="p-4 bg-emerald-500 text-white font-bold rounded-2xl shadow-lg flex items-center justify-between animate-fade-in text-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage(null)} className="text-white/80 hover:text-white underline">
+            Cerrar
+          </button>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold mb-2">
             <DollarSign className="w-4 h-4" />
-            Módulo Financiero & Control de Caja Menor
+            Módulo Financiero & Recaudo de Efectivo
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-            Gestión Financiera, Caja Menor & Rentabilidad
+            Gestión Financiera, Caja Menor & Recaudos
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Control de liquidez, arqueo de ingresos (+) y egresos (-) en efectivo con actualización en tiempo real del saldo de caja menor.
+            Control de cobros de facturas en efectivo, abonos a cuenta, ingresos diarios y mensuales, y arqueo de caja en tiempo real.
           </p>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
+        {/* Action Buttons & Tab switcher */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Primary Action Button: Add Invoice Payment or Abono in Cash */}
           <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-3 py-2 rounded-lg transition-all ${
-              activeTab === 'overview'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-            }`}
+            onClick={() => handleOpenInvoicePaymentModal()}
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md shadow-emerald-900/20 active:scale-95 transition-all cursor-pointer"
+            title="Registrar cobro total en efectivo o abono a factura electrónica"
           >
-            Resumen General
+            <Receipt className="w-4 h-4" />
+            <span>+ Cobro de Factura / Abono</span>
           </button>
+
           <button
-            onClick={() => setActiveTab('cash_book')}
-            className={`px-3 py-2 rounded-lg transition-all ${
-              activeTab === 'cash_book'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-            }`}
+            onClick={() => {
+              setTxType('INGRESO');
+              setShowNewCashModal(true);
+            }}
+            className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors"
           >
-            Libro de Caja Menor ({cashTransactions.length})
+            <Plus className="w-4 h-4" />
+            <span>+ Movimiento General</span>
           </button>
-          <button
-            onClick={() => setActiveTab('profitability')}
-            className={`px-3 py-2 rounded-lg transition-all ${
-              activeTab === 'profitability'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Rentabilidad & P&G
-          </button>
+
+          {/* Tab switcher */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'overview'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Resumen
+            </button>
+            <button
+              onClick={() => setActiveTab('cash_book')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'cash_book'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Libro Caja ({cashTransactions.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('profitability')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'profitability'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Rentabilidad
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Financial KPIs */}
+      {/* Financial & Cash KPIs (Ingresos Diarios y Mensuales) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Current Cash Balance */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Saldo Caja Menor</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-              <Wallet className="w-5 h-5" />
-            </div>
+        {/* KPI 1: Current Cash Balance */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+              <Wallet className="w-4 h-4" /> Saldo Caja Menor
+            </span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+              Disponible
+            </span>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
             {formatCOP(currentPettyCashBalance)}
           </div>
-          <div className="flex items-center justify-between text-[11px] mt-2 text-slate-500">
-            <span className="text-emerald-600 font-bold">+{formatCOP(totalCashIncomes)}</span>
-            <span className="text-rose-600 font-bold">-{formatCOP(totalCashExpenses)}</span>
+          <div className="flex items-center justify-between text-[11px] pt-1 text-slate-500">
+            <span className="text-emerald-600 font-bold">+{formatCOP(totalCashIncomes)} Ingr.</span>
+            <span className="text-rose-600 font-bold">-{formatCOP(totalCashExpenses)} Egr.</span>
           </div>
         </div>
 
-        {/* Total Collected */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Recaudo Total Cobrado</span>
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600">
-              <DollarSign className="w-5 h-5" />
-            </div>
+        {/* KPI 2: Ingresos Diarios de Efectivo (Hoy) */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+              <Clock className="w-4 h-4" /> Ingresos Hoy (Diario)
+            </span>
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-mono">
+              {dailyCashReceiptsCount} {dailyCashReceiptsCount === 1 ? 'Recibo' : 'Recibos'}
+            </span>
           </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-            {formatCOP(totalCollected)}
+          <div className="text-2xl font-black text-sky-600 dark:text-sky-400 font-mono">
+            {formatCOP(dailyCashIncomes)}
           </div>
-          <div className="flex items-center gap-1 mt-2 text-xs font-medium text-sky-600">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Facturación electrónica liquidada</span>
-          </div>
-        </div>
-
-        {/* Pending Receivables */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Cuentas por Cobrar</span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
-            {formatCOP(totalPending)}
-          </div>
-          <div className="text-xs font-medium text-slate-500 mt-2">
-            {invoices.filter((i) => i.paymentStatus === 'PENDIENTE').length} facturas por cobrar
+          <div className="text-[11px] text-slate-500 pt-1 flex items-center justify-between">
+            <span>Egresos hoy: <strong className="text-rose-600">{formatCOP(dailyCashExpenses)}</strong></span>
+            <span className="font-bold text-slate-700 dark:text-slate-300">Neto: {formatCOP(dailyNetCash)}</span>
           </div>
         </div>
 
-        {/* Gross Margin */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Margen Bruto Est.</span>
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
-              <PieChartIcon className="w-5 h-5" />
-            </div>
+        {/* KPI 3: Ingresos Mensuales de Efectivo (Mes Actual) */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4" /> Ingresos Mes (Mensual)
+            </span>
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono">
+              {monthlyCashReceiptsCount} Recibos
+            </span>
           </div>
           <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
-            {grossMarginPercent}%
+            {formatCOP(monthlyCashIncomes)}
           </div>
-          <div className="text-xs font-medium text-slate-500 mt-2">
-            Utilidad est: {formatCOP(estimatedGrossProfit)}
+          <div className="text-[11px] text-slate-500 pt-1 flex items-center justify-between">
+            <span>Egresos mes: <strong className="text-rose-600">{formatCOP(monthlyCashExpenses)}</strong></span>
+            <span className="font-bold text-slate-700 dark:text-slate-300">Neto: {formatCOP(monthlyNetCash)}</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Recaudos de Facturas & Abonos en Efectivo */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+              <Receipt className="w-4 h-4" /> Facturas & Abonos
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300">
+              Recaudo Clientes
+            </span>
+          </div>
+          <div className="text-2xl font-black text-teal-600 dark:text-teal-400 font-mono">
+            {formatCOP(invoiceCashCollections)}
+          </div>
+          <div className="text-[11px] text-slate-500 pt-1">
+            Respaldado con Recibos de Caja Oficiales DIAN
           </div>
         </div>
       </div>
@@ -296,95 +511,167 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
-            <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-between">
-              <span>Últimas Facturas & Estados de Recaudo</span>
-              <span className="text-xs font-normal text-slate-400">Total: {invoices.length}</span>
-            </h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-sky-500" />
+                  <span>Facturas Electrónicas & Opción de Cobro en Efectivo</span>
+                </h2>
+                <p className="text-xs text-slate-400">Selecciona cualquier factura pendiente para cobrarla o registrar un abono parcial.</p>
+              </div>
+              <button
+                onClick={() => handleOpenInvoicePaymentModal()}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Cobrar / Abonar Factura</span>
+              </button>
+            </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px]">
                   <tr>
                     <th className="p-3">Factura</th>
-                    <th className="p-3">Cliente</th>
-                    <th className="p-3">Monto</th>
-                    <th className="p-3">Medio</th>
+                    <th className="p-3">Copropiedad / Cliente</th>
+                    <th className="p-3">Total Factura</th>
+                    <th className="p-3">Abonos / Saldo</th>
                     <th className="p-3 text-center">Estado</th>
+                    <th className="p-3 text-center">Acción de Cobro</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {invoices.slice(0, 5).map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <td className="p-3 font-mono font-bold text-sky-600 dark:text-sky-400">{inv.invoiceNumber}</td>
-                      <td className="p-3 font-semibold text-slate-800 dark:text-slate-200">{inv.clientName}</td>
-                      <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">{formatCOP(inv.totalCOP)}</td>
-                      <td className="p-3 text-slate-500">{inv.paymentMethod || 'PSE'}</td>
-                      <td className="p-3 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          inv.paymentStatus === 'PAGADO'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}>
-                          {inv.paymentStatus}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {invoices.map((inv) => {
+                    const isPaid = inv.paymentStatus === 'PAGADO';
+                    const advance = inv.advancePaymentCOP || 0;
+                    const pendingBalance = Math.max(0, inv.totalCOP - advance);
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="p-3">
+                          <div className="font-mono font-bold text-sky-600 dark:text-sky-400">{inv.invoiceNumber}</div>
+                          <div className="text-[10px] text-slate-400">{inv.issueDate}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="font-semibold text-slate-800 dark:text-slate-200">{inv.clientName}</div>
+                          <div className="text-[10px] text-slate-400">NIT: {inv.clientNit}</div>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCOP(inv.totalCOP)}
+                        </td>
+                        <td className="p-3 font-mono">
+                          {advance > 0 ? (
+                            <div>
+                              <div className="text-emerald-600 text-[11px] font-bold">Abonado: {formatCOP(advance)}</div>
+                              <div className="text-amber-600 font-bold">Saldo: {formatCOP(pendingBalance)}</div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">Sin abonos previos</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isPaid
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            }`}
+                          >
+                            {isPaid ? 'PAGADO' : 'PENDIENTE'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {!isPaid ? (
+                            <button
+                              onClick={() => handleOpenInvoicePaymentModal(inv.id)}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] rounded-lg border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 mx-auto"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              <span>Cobrar / Abonar</span>
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-emerald-600 font-bold flex items-center justify-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {inv.paymentMethod === 'EFECTIVO' ? 'Efectivo' : inv.paymentMethod || 'PSE'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Petty Cash Summary Box */}
+          {/* Petty Cash Summary Box with Daily & Monthly Breakdown */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
             <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-between">
-              <span>Arqueo de Caja Menor</span>
+              <span>Arqueo de Caja & Flujo de Efectivo</span>
               <Wallet className="w-5 h-5 text-emerald-600" />
             </h2>
 
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 space-y-2 text-xs">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 space-y-2.5 text-xs">
               <div className="flex justify-between text-slate-500">
-                <span>Fondo Inicial Asignado:</span>
+                <span>Fondo Inicial de Caja:</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{formatCOP(INITIAL_CASH_FUND)}</span>
               </div>
-              <div className="flex justify-between text-emerald-600">
-                <span>(+) Total Ingresos en Efectivo:</span>
-                <span className="font-mono font-bold">+{formatCOP(totalCashIncomes)}</span>
+              <div className="flex justify-between text-sky-600 font-medium">
+                <span>(+) Recaudo Diario (Hoy):</span>
+                <span className="font-mono font-bold">+{formatCOP(dailyCashIncomes)}</span>
               </div>
-              <div className="flex justify-between text-rose-600">
+              <div className="flex justify-between text-indigo-600 font-medium">
+                <span>(+) Recaudo Mensual (Agosto):</span>
+                <span className="font-mono font-bold">+{formatCOP(monthlyCashIncomes)}</span>
+              </div>
+              <div className="flex justify-between text-emerald-600 font-bold pt-1 border-t border-slate-200 dark:border-slate-700">
+                <span>(+) Total Ingresos en Efectivo:</span>
+                <span className="font-mono">+{formatCOP(totalCashIncomes)}</span>
+              </div>
+              <div className="flex justify-between text-rose-600 font-bold">
                 <span>(-) Total Egresos / Gastos Menores:</span>
-                <span className="font-mono font-bold">-{formatCOP(totalCashExpenses)}</span>
+                <span className="font-mono">-{formatCOP(totalCashExpenses)}</span>
               </div>
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between font-black text-slate-900 dark:text-white text-sm">
-                <span>Saldo Neto Disponible:</span>
+                <span>Saldo Neto en Caja:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatCOP(currentPettyCashBalance)}</span>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="space-y-2">
               <button
-                onClick={() => {
-                  setTxType('INGRESO');
-                  setNewCashCategory('RECAUDO_SERVICIO');
-                  setShowNewCashModal(true);
-                }}
-                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 shadow-sm"
+                onClick={() => handleOpenInvoicePaymentModal()}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md"
               >
-                <ArrowUpRight className="w-3.5 h-3.5" />
-                <span>+ Ingreso</span>
+                <Receipt className="w-4 h-4" />
+                <span>+ Cobrar Factura / Registrar Abono</span>
               </button>
 
-              <button
-                onClick={() => {
-                  setTxType('EGRESO');
-                  setNewCashCategory('GASTO_FERRETERIA');
-                  setShowNewCashModal(true);
-                }}
-                className="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 shadow-sm"
-              >
-                <ArrowDownRight className="w-3.5 h-3.5" />
-                <span>- Egreso</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setTxType('INGRESO');
+                    setNewCashCategory('RECAUDO_SERVICIO');
+                    setShowNewCashModal(true);
+                  }}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>+ Ingreso Gral</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setTxType('EGRESO');
+                    setNewCashCategory('GASTO_FERRETERIA');
+                    setShowNewCashModal(true);
+                  }}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700"
+                >
+                  <ArrowDownRight className="w-3.5 h-3.5 text-rose-500" />
+                  <span>- Egreso Gral</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -400,21 +687,29 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 Libro Auxiliar de Caja Menor (Ingresos & Egresos)
               </h2>
               <p className="text-xs text-slate-500">
-                Auditoría y conciliación de todos los recaudos (+) y egresos/gastos (-) efectuados en efectivo por el personal operativo.
+                Auditoría y conciliación de cobros de facturas (+), abonos (+), ingresos generales (+) y egresos (-) en efectivo.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleOpenInvoicePaymentModal()}
+                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-900/20"
+              >
+                <Receipt className="w-4 h-4" />
+                <span>+ Factura / Abono Efectivo</span>
+              </button>
+
               <button
                 onClick={() => {
                   setTxType('INGRESO');
                   setNewCashCategory('RECAUDO_SERVICIO');
                   setShowNewCashModal(true);
                 }}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
               >
                 <Plus className="w-4 h-4" />
-                <span>Registrar Ingreso (+)</span>
+                <span>+ Ingreso</span>
               </button>
 
               <button
@@ -423,60 +718,97 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   setNewCashCategory('GASTO_FERRETERIA');
                   setShowNewCashModal(true);
                 }}
-                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
               >
                 <Plus className="w-4 h-4" />
-                <span>Registrar Egreso (-)</span>
+                <span>- Egreso</span>
               </button>
             </div>
           </div>
 
-          {/* Search & Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div className="relative flex-1 w-full sm:max-w-xs">
+          {/* Search & Filter Bar with Daily and Monthly toggles */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+            <div className="relative flex-1 w-full md:max-w-xs">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Buscar por recibo, cliente, técnico o concepto..."
+                placeholder="Buscar por recibo, factura, cliente o técnico..."
                 value={cashSearch}
                 onChange={(e) => setCashSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCashTypeFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg font-bold ${
-                  cashTypeFilter === 'ALL'
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Todos ({cashTransactions.length})
-              </button>
-              <button
-                onClick={() => setCashTypeFilter('INGRESO')}
-                className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 ${
-                  cashTypeFilter === 'INGRESO'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300'
-                }`}
-              >
-                <ArrowUpRight className="w-3.5 h-3.5" />
-                Ingresos (+)
-              </button>
-              <button
-                onClick={() => setCashTypeFilter('EGRESO')}
-                className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 ${
-                  cashTypeFilter === 'EGRESO'
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border border-rose-300'
-                }`}
-              >
-                <ArrowDownRight className="w-3.5 h-3.5" />
-                Egresos (-)
-              </button>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              {/* Time Period Filter */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setCashTimeFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${
+                    cashTimeFilter === 'ALL'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Histórico
+                </button>
+                <button
+                  onClick={() => setCashTimeFilter('TODAY')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${
+                    cashTimeFilter === 'TODAY'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-sky-600'
+                  }`}
+                >
+                  Hoy (Diario)
+                </button>
+                <button
+                  onClick={() => setCashTimeFilter('MONTH')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${
+                    cashTimeFilter === 'MONTH'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-indigo-600'
+                  }`}
+                >
+                  Mes Actual
+                </button>
+              </div>
+
+              {/* Type Filter */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCashTypeFilter('ALL')}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold ${
+                    cashTypeFilter === 'ALL'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Todos ({filteredCashTransactions.length})
+                </button>
+                <button
+                  onClick={() => setCashTypeFilter('INGRESO')}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 ${
+                    cashTypeFilter === 'INGRESO'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300'
+                  }`}
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  Ingresos
+                </button>
+                <button
+                  onClick={() => setCashTypeFilter('EGRESO')}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 ${
+                    cashTypeFilter === 'EGRESO'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border border-rose-300'
+                  }`}
+                >
+                  <ArrowDownRight className="w-3.5 h-3.5" />
+                  Egresos
+                </button>
+              </div>
             </div>
           </div>
 
@@ -486,10 +818,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 <tr>
                   <th className="p-3">Comprobante No.</th>
                   <th className="p-3">Fecha</th>
-                  <th className="p-3">Tipo</th>
+                  <th className="p-3">Tipo & Origen</th>
                   <th className="p-3">Quién Recibe / Cliente</th>
-                  <th className="p-3">Concepto & Categoría</th>
-                  <th className="p-3">Autoriza / Entrega</th>
+                  <th className="p-3">Concepto & Factura</th>
+                  <th className="p-3">Autoriza / Custodia</th>
                   <th className="p-3 text-right">Monto COP</th>
                   <th className="p-3 text-center">Acción</th>
                 </tr>
@@ -499,24 +831,33 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   const isIncome = (tx.type || 'INGRESO') === 'INGRESO';
                   const recipient = tx.receivedBy || tx.receivedByTechnician || tx.clientName || tx.clientOrBeneficiary || 'N/A';
                   const authorizer = tx.authorizedByAdmin || tx.verifiedByAdmin || 'Tatiana Enciso';
+                  const isInvoicePayment = tx.category === 'RECAUDO_SERVICIO' || tx.category === 'ANTICIPO_CLIENTE' || tx.orderNumber?.includes('FE-');
+
                   return (
-                    <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                       <td className="p-3 font-mono font-bold text-sky-600 dark:text-sky-400">
                         {tx.receiptNumber}
                       </td>
                       <td className="p-3 text-slate-500">{tx.date}</td>
                       <td className="p-3">
-                        {isIncome ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
-                            <ArrowUpRight className="w-3 h-3 text-emerald-600" />
-                            Ingreso (+)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
-                            <ArrowDownRight className="w-3 h-3 text-rose-600" />
-                            Egreso (-)
-                          </span>
-                        )}
+                        <div className="space-y-1">
+                          {isIncome ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                              <ArrowUpRight className="w-3 h-3 text-emerald-600" />
+                              Ingreso (+)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                              <ArrowDownRight className="w-3 h-3 text-rose-600" />
+                              Egreso (-)
+                            </span>
+                          )}
+                          {isInvoicePayment && (
+                            <span className="block text-[9px] font-bold text-teal-600 dark:text-teal-400">
+                              {tx.category === 'ANTICIPO_CLIENTE' ? 'Abono a Factura' : 'Cobro Factura'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3">
                         <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -553,10 +894,11 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                       <td className="p-3 text-center">
                         <button
                           onClick={() => setViewingReceipt(tx)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[11px] flex items-center gap-1 mx-auto"
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[11px] flex items-center gap-1 mx-auto transition-colors"
+                          title="Ver e Imprimir Recibo Oficial de Caja"
                         >
-                          <Printer className="w-3 h-3" />
-                          <span>Ver</span>
+                          <Printer className="w-3 h-3 text-emerald-600" />
+                          <span>Recibo</span>
                         </button>
                       </td>
                     </tr>
@@ -564,6 +906,317 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* DEDICATED MODAL: AGREGAR FACTURA DE COBRO EN EFECTIVO O ABONO A FACTURA */}
+      {showInvoicePaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-7 max-w-xl w-full shadow-2xl space-y-4 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 dark:text-white text-base">
+                    Agregar Factura de Cobro en Efectivo o Abono
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Registra el cobro total o abono parcial en efectivo y genera el Recibo de Caja oficial.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInvoicePaymentModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold p-1 text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitInvoicePayment} className="space-y-4 text-xs">
+              {/* 1. SELECCIÓN DE FACTURA */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  1. Seleccione la Factura Electrónica a Cobrar o Abonar: *
+                </label>
+                <select
+                  value={selectedInvoiceId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedInvoiceId(id);
+                    if (id !== 'MANUAL') {
+                      const inv = invoices.find((i) => i.id === id);
+                      if (inv) {
+                        const pending = Math.max(0, inv.totalCOP - (inv.advancePaymentCOP || 0));
+                        setInvoiceCashAmount(paymentMode === 'FULL' ? String(pending) : String(Math.min(500000, pending)));
+                        setInvoiceCashConcept(`Cobro en efectivo Factura ${inv.invoiceNumber} - ${inv.clientName}`);
+                      }
+                    } else {
+                      setInvoiceCashAmount('');
+                      setInvoiceCashConcept('');
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs"
+                >
+                  <optgroup label="Facturas Pendientes de Cobro">
+                    {invoices
+                      .filter((i) => i.paymentStatus === 'PENDIENTE')
+                      .map((inv) => {
+                        const pending = Math.max(0, inv.totalCOP - (inv.advancePaymentCOP || 0));
+                        return (
+                          <option key={inv.id} value={inv.id}>
+                            {inv.invoiceNumber} - {inv.clientName} (Saldo: {formatCOP(pending)})
+                          </option>
+                        );
+                      })}
+                  </optgroup>
+                  <optgroup label="Otras Facturas del Sistema">
+                    {invoices
+                      .filter((i) => i.paymentStatus !== 'PENDIENTE')
+                      .map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoiceNumber} - {inv.clientName} (Ya liquidada: {formatCOP(inv.totalCOP)})
+                        </option>
+                      ))}
+                  </optgroup>
+                  <option value="MANUAL">➕ Registrar Factura / Cobro Manual no listado</option>
+                </select>
+              </div>
+
+              {/* Manual Fields if 'MANUAL' is selected */}
+              {selectedInvoiceId === 'MANUAL' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 animate-fade-in">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      No. Factura / Referencia: *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: FE-2026-904"
+                      value={manualInvoiceNo}
+                      onChange={(e) => setManualInvoiceNo(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Nombre Copropiedad / Cliente: *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Edificio Torre Central"
+                      value={manualClientName}
+                      onChange={(e) => setManualClientName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Invoice Details Card */}
+              {selectedInvoice && (
+                <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-2xl border border-emerald-300 dark:border-emerald-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-mono font-black text-sky-600 dark:text-sky-400 text-xs">
+                        {selectedInvoice.invoiceNumber}
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300 font-bold ml-2">
+                        {selectedInvoice.clientName}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Emisión: {selectedInvoice.issueDate}</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block">Total Liquidado:</span>
+                      <strong className="font-mono text-slate-900 dark:text-white">
+                        {formatCOP(selectedInvoice.totalCOP)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Abonos Previos:</span>
+                      <strong className="font-mono text-emerald-600">
+                        {formatCOP(selectedInvoice.advancePaymentCOP || 0)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block font-bold text-amber-700 dark:text-amber-300">
+                        Saldo Pendiente:
+                      </span>
+                      <strong className="font-mono text-sm font-black text-amber-600 dark:text-amber-400">
+                        {formatCOP(selectedInvoicePendingBalance)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. MODALIDAD DE PAGO */}
+              <div className="space-y-1.5">
+                <label className="block font-bold text-slate-700 dark:text-slate-300">
+                  2. Modalidad del Recaudo en Efectivo: *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMode('FULL');
+                      if (selectedInvoice) {
+                        setInvoiceCashAmount(String(selectedInvoicePendingBalance));
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      paymentMode === 'FULL'
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md font-bold'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Cobro Total (100%)</span>
+                    </div>
+                    <div className={`text-[10px] mt-1 ${paymentMode === 'FULL' ? 'text-white/80' : 'text-slate-400'}`}>
+                      Liquida y cancela el 100% de la factura
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMode('ABONO');
+                      if (selectedInvoice && (!invoiceCashAmount || Number(invoiceCashAmount) >= selectedInvoicePendingBalance)) {
+                        setInvoiceCashAmount(String(Math.min(500000, selectedInvoicePendingBalance || 500000)));
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      paymentMode === 'ABONO'
+                        ? 'bg-amber-600 text-white border-amber-500 shadow-md font-bold'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      <span>Abono Parcial a Factura</span>
+                    </div>
+                    <div className={`text-[10px] mt-1 ${paymentMode === 'ABONO' ? 'text-white/80' : 'text-slate-400'}`}>
+                      Descuenta anticipo y conserva saldo
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. MONTO EN EFECTIVO & AUDITORÍA */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    3. Monto Recibido en Efectivo (COP): *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                    <input
+                      type="number"
+                      required
+                      min="1000"
+                      step="1000"
+                      value={invoiceCashAmount}
+                      onChange={(e) => setInvoiceCashAmount(e.target.value)}
+                      placeholder="0"
+                      className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-emerald-400 dark:border-emerald-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-black text-base focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  {selectedInvoice && paymentMode === 'ABONO' && (
+                    <div className="text-[11px] text-slate-500 mt-1 flex justify-between font-medium">
+                      <span>Nuevo Saldo Restante tras este abono:</span>
+                      <strong className="font-mono text-amber-600 font-black">
+                        {formatCOP(Math.max(0, selectedInvoicePendingBalance - (parseFloat(invoiceCashAmount) || 0)))}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Quién Recibe el Dinero en Efectivo: *
+                  </label>
+                  <select
+                    value={invoiceCashTech}
+                    onChange={(e) => setInvoiceCashTech(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
+                  >
+                    <option value="Alejandra Cruz">Alejandra Cruz (Directora Operaciones)</option>
+                    <option value="Tatiana Enciso">Tatiana Enciso (Gerente General)</option>
+                    {technicians.map((t) => (
+                      <option key={t.id} value={t.fullName}>
+                        {t.fullName} (Técnico Operativo)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+                    Quién Autoriza el Recibo: *
+                  </label>
+                  <select
+                    value={invoiceCashAuthorizedBy}
+                    onChange={(e) => setInvoiceCashAuthorizedBy(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold"
+                  >
+                    <option value="Tatiana Enciso">Tatiana Enciso (Administradora / Gerencia)</option>
+                    <option value="Alejandra Cruz">Alejandra Cruz (Administradora / Operaciones)</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Concepto / Observaciones del Recibo:
+                  </label>
+                  <input
+                    type="text"
+                    value={invoiceCashConcept}
+                    onChange={(e) => setInvoiceCashConcept(e.target.value)}
+                    placeholder="Ej: Cobro en efectivo mantenimiento preventivo de bombas y sellos"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Impact summary box */}
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-300 dark:border-emerald-800 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-200 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Se generará el Recibo Oficial de Caja e ingresará a Caja Menor:</span>
+                </span>
+                <span className="font-mono font-black text-sm text-emerald-600 dark:text-emerald-400">
+                  +{formatCOP(parseFloat(invoiceCashAmount) || 0)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowInvoicePaymentModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-md flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Registrar Cobro & Emitir Recibo de Caja</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

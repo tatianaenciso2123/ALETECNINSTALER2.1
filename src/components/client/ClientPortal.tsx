@@ -873,72 +873,94 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             {clientInvoices.length === 0 ? (
               <p className="text-xs text-slate-400 py-8 text-center">No hay facturas registradas para esta copropiedad.</p>
             ) : (
-              clientInvoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs shadow-sm hover:shadow-md transition-all"
-                >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-black text-sky-600 dark:text-sky-400 text-sm">
-                        {inv.invoiceNumber}
-                      </span>
-                      {inv.orderNumber && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                          {inv.orderNumber}
+              clientInvoices.map((inv) => {
+                const isPaid = inv.paymentStatus === 'PAGADO';
+                const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                const daysOverdue = isOverdue ? Math.max(1, Math.floor((new Date().getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24))) : 0;
+
+                return (
+                  <div
+                    key={inv.id}
+                    className={`p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs shadow-sm hover:shadow-md transition-all ${
+                      isOverdue
+                        ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800'
+                        : 'bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-black text-sky-600 dark:text-sky-400 text-sm">
+                          {inv.invoiceNumber}
                         </span>
-                      )}
-                      <span
-                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                          inv.paymentStatus === 'PAGADO'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-300'
-                        }`}
-                      >
-                        {inv.paymentStatus === 'PAGADO' ? 'PAGADA & CONCILIADA' : 'PENDIENTE DE PAGO'}
-                      </span>
-                    </div>
+                        {inv.orderNumber && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                            {inv.orderNumber}
+                          </span>
+                        )}
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            isPaid
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-300'
+                              : isOverdue
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 animate-pulse font-black'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-300'
+                          }`}
+                        >
+                          {isPaid
+                            ? 'PAGADA & CONCILIADA'
+                            : isOverdue
+                            ? `¡PAGO VENCIDO! (${daysOverdue} días de mora)`
+                            : 'PENDIENTE DE PAGO'}
+                        </span>
+                      </div>
 
-                    <div className="text-slate-600 dark:text-slate-300 font-medium">
-                      {inv.items[0]?.description} {inv.items.length > 1 && `(+${inv.items.length - 1} conceptos adicionales)`}
-                    </div>
+                      <div className="text-slate-600 dark:text-slate-300 font-medium">
+                        {inv.items[0]?.description} {inv.items.length > 1 && `(+${inv.items.length - 1} conceptos adicionales)`}
+                      </div>
 
-                    <div className="text-[11px] text-slate-500 flex items-center gap-3">
-                      <span>Emisión: <strong>{inv.issueDate}</strong></span>
-                      <span>Vencimiento: <strong>{inv.dueDate}</strong></span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-3 md:pt-0 border-t md:border-t-0 border-slate-200 dark:border-slate-700">
-                    <div className="text-left sm:text-right">
-                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Total Liquidado:</div>
-                      <div className="text-lg font-black text-slate-900 dark:text-white">
-                        {formatCOP(inv.totalCOP)}
+                      <div className="text-[11px] text-slate-500 flex items-center gap-3">
+                        <span>Emisión: <strong>{inv.issueDate}</strong></span>
+                        <span className={isOverdue ? 'text-rose-600 font-bold' : ''}>
+                          Vencimiento: <strong>{inv.dueDate}</strong> {isOverdue && '(Vencida)'}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedInvoiceToView(inv)}
-                        className="p-2.5 text-slate-500 hover:text-sky-600 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
-                        title="Ver detalle de factura electrónica"
-                      >
-                        <FileText className="w-5 h-5" />
-                      </button>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-3 md:pt-0 border-t md:border-t-0 border-slate-200 dark:border-slate-700">
+                      <div className="text-left sm:text-right">
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Total Liquidado:</div>
+                        <div className="text-lg font-black text-slate-900 dark:text-white">
+                          {formatCOP(inv.totalCOP)}
+                        </div>
+                      </div>
 
-                      {inv.paymentStatus !== 'PAGADO' && (
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setShowPaymentModal(inv)}
-                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md flex items-center gap-1.5"
+                          onClick={() => setSelectedInvoiceToView(inv)}
+                          className="p-2.5 text-slate-500 hover:text-sky-600 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl"
+                          title="Ver detalle de factura electrónica"
                         >
-                          <CreditCard className="w-4 h-4" />
-                          <span>Pagar con PSE / Nequi</span>
+                          <FileText className="w-5 h-5" />
                         </button>
-                      )}
+
+                        {!isPaid && (
+                          <button
+                            onClick={() => setShowPaymentModal(inv)}
+                            className={`px-4 py-2.5 font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-transform active:scale-95 ${
+                              isOverdue
+                                ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            <span>{isOverdue ? 'Pagar Ahora (Mora)' : 'Pagar con PSE / Nequi'}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
